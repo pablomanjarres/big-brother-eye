@@ -198,3 +198,6 @@ def test_failing_notifier_does_not_break_alerts(storage):
         def send(self, title, body):
             raise RuntimeError("no network")
 
+    service = AlertService(storage, [Broken()])
+    assert service.raise_alert(at(0), "test", "t", "b", "k")
+    assert not service.raise_alert(at(1), "test", "t", "b", "k")
