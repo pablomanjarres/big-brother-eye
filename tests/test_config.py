@@ -16,11 +16,11 @@ def test_example_config_parses_to_defaults(tmp_path):
 def test_values_and_types(tmp_path):
     path = tmp_path / "config.toml"
     path.write_text(
-        'owner = "pablo"\n[camera]\nsource = "rtsp://cam/stream"\ninterval_s = 1\n'
+        'owner = "alex"\n[camera]\nsource = "rtsp://cam/stream"\ninterval_s = 1\n'
         '[calendar]\nsource = "ics"\ndesk_keywords = ["desk"]\n'
     )
     config = load_config(path)
-    assert config.owner == "pablo"
+    assert config.owner == "alex"
     assert config.camera.source == "rtsp://cam/stream"
     assert config.camera.interval_s == 1.0
     assert config.calendar.desk_keywords == ("desk",)
@@ -70,8 +70,8 @@ def test_repo_example_matches_bbeye_init():
 
 def test_files_saved_with_a_windows_bom_still_load(tmp_path):
     config = tmp_path / "config.toml"
-    config.write_bytes(b'\xef\xbb\xbfowner = "pablo"\n')
-    assert load_config(config).owner == "pablo"
+    config.write_bytes(b'\xef\xbb\xbfowner = "alex"\n')
+    assert load_config(config).owner == "alex"
     secrets = tmp_path / "secrets.env"
     secrets.write_bytes(b"\xef\xbb\xbfPUSHCUT_API_KEY=abc\n")
     assert load_secrets(secrets)["PUSHCUT_API_KEY"] == "abc"
