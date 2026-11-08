@@ -60,6 +60,8 @@ def run_checks(config: Config, secrets: dict[str, str]) -> list[Check]:
     else:
         add(Check("FAIL", "owner face", f"no face enrolled for {config.owner!r}: run `bbeye enroll`"))
 
+    import httpx
+
     from bbeye.signals.idle import input_idle_reader, remote_idle_reader
 
     if config.signals.use_input_idle:
@@ -71,9 +73,11 @@ def run_checks(config: Config, secrets: dict[str, str]) -> list[Check]:
     else:
         add(Check("SKIP", "input activity", "this computer's keyboard/mouse is not used"))
     for url in config.signals.idle_urls:
-        remote = remote_idle_reader(url)()
+        with httpx.Client(timeout=3) as client:
+            remote = remote_idle_reader(url, client)()
         if remote is None:
-            add(Check("FAIL", "remote input", f"{url} unreachable: run `bbeye idle-serve` there"))
+            # The Eye still works without it (camera and other sources decide), so this is a warning.
+            add(Check("WARN", "remote input", f"{url} unreachable: run `bbeye idle-serve` there"))
         else:
             add(Check("OK", "remote input", f"{url}: last input {remote:.0f} s ago"))
     if not config.signals.use_input_idle and not config.signals.idle_urls:
