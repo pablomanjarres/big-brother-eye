@@ -139,3 +139,15 @@ def test_a_failing_reactor_does_not_stop_the_loop(storage):
     eye = make_eye(storage, clock, scene, camera, Broken())
     run(eye, clock, 60)
     assert storage.open_work_session() is not None
+
+
+def test_cli_survives_a_console_less_start(monkeypatch, capsys):
+    import sys
+
+    from bbeye import cli
+
+    monkeypatch.setattr(sys, "stdout", None)
+    monkeypatch.setattr(sys, "stderr", None)
+    cli._ensure_std_streams()
+    assert sys.stdout is not None and sys.stderr is not None
+    print("written to the null device")
