@@ -198,3 +198,117 @@ def test_interrupted_recording_is_finished_without_duplicates(storage):
     sync.on_events([WorkEnded("bbeye-1", at(0), at(600))])
     sync.flush(at(601))
     assert fake.ledger["active"] is None
+    assert [(r["id"], r["endedAt"]) for r in fake.ledger["sessions"]] == [("bbeye-1-150000", iso_at(600))]
+    sync.on_events([WorkEnded("bbeye-1", at(0), at(600))])  # a replay changes nothing
+    sync.flush(at(602))
+    assert len(fake.ledger["sessions"]) == 1
+
+
+def test_tiny_sessions_are_not_sent(storage):
+    fake = FakeCortex()
+    sync = sync_for(storage, fake)
+    sync.on_events([WorkEnded("bbeye-1", at(0), at(30))])
+    sync.flush(at(31))
+    assert fake.commands == [] and storage.outbox_summary() == {}
+
+
+def test_free_parts():
+    taken = [(at(100), at(200)), (at(150), at(300)), (at(500), at(520))]
+    assert free_parts(at(0), at(600), taken) == [(at(0), at(100)), (at(300), at(500)), (at(520), at(600))]
+    assert free_parts(at(0), at(600), [(at(-10), at(700))]) == []
+
+
+def running_sprint(end_ms):
+    return {
+        "task": "Deep work",
+        "startedAt": "2026-11-07T14:50:00.000Z",
+        "endTimeMs": end_ms,
+        "duration": 50,
+        "isPaused": False,
+        "pausedTimeLeft": 0,
+    }
+
+
+def ms(moment):
+    return int(moment.timestamp() * 1000)
+
+
+def guard(storage, fake):
+    return SprintGuard(storage, fake.client(), pause_after=timedelta(minutes=5))
+
+
+def test_sprint_pauses_from_the_moment_you_left_and_resumes(storage):
+    fake = FakeCortex()
+    fake.data[SPRINT_KEY] = running_sprint(ms(at(1800)))  # 30 min left at t=0
+    g = guard(storage, fake)
+    g.on_events([ActivityChanged(at(600), "working", "away")])
+    g.on_tick(Tick(at(800), snapshot("away", at(600)), None))
+    assert not fake.data[SPRINT_KEY]["isPaused"]  # only 200 s away
+    g.on_tick(Tick(at(900), snapshot("away", at(600)), None))
+    paused = fake.data[SPRINT_KEY]
+    assert paused["isPaused"] and paused["pausedTimeLeft"] == 1200  # counted from t=600, not t=900
+
+    g.on_events([ActivityChanged(at(2000), "away", "working")])  # confirmed at 2030, back-dated to 2000
+    g.on_tick(Tick(at(2030), snapshot("working", at(2000)), None))
+    resumed = fake.data[SPRINT_KEY]
+    assert not resumed["isPaused"] and resumed["endTimeMs"] == ms(at(2000)) + 1200 * 1000
+    assert storage.open_sprint_pause() is None
+
+
+def test_sprint_not_resumed_if_user_changed_it(storage):
+    fake = FakeCortex()
+    fake.data[SPRINT_KEY] = running_sprint(ms(at(1800)))
+    g = guard(storage, fake)
+    g.on_events([ActivityChanged(at(0), "working", "away")])
+    g.on_tick(Tick(at(300), snapshot("away"), None))
+    fake.data[SPRINT_KEY] = None  # user reset the sprint
+    g.on_events([ActivityChanged(at(400), "away", "working")])
+    g.on_tick(Tick(at(430), snapshot("working"), None))
+    assert fake.data[SPRINT_KEY] is None and storage.open_sprint_pause() is None
+
+
+def test_sprint_pause_retries_on_conflict_and_when_offline(storage):
+    fake = FakeCortex()
+    fake.data[SPRINT_KEY] = running_sprint(ms(at(1800)))
+    fake.conflicts = 1
+    g = guard(storage, fake)
+    g.on_events([ActivityChanged(at(0), "working", "away")])
+    g.on_tick(Tick(at(300), snapshot("away"), None))
+    assert fake.data[SPRINT_KEY]["isPaused"]
+
+    fake2 = FakeCortex()
+    fake2.data[SPRINT_KEY] = running_sprint(ms(at(1800)))
+    fake2.down = True
+    g2 = SprintGuard(storage, fake2.client(), pause_after=timedelta(minutes=5))
+    g2.on_events([ActivityChanged(at(0), "working", "away")])
+    g2.on_tick(Tick(at(300), snapshot("away"), None))
+    fake2.down = False
+    g2.on_tick(Tick(at(330), snapshot("away"), None))  # waits for the retry interval
+    assert not fake2.data[SPRINT_KEY]["isPaused"]
+    g2.on_tick(Tick(at(361), snapshot("away"), None))
+    assert fake2.data[SPRINT_KEY]["isPaused"]
+
+
+def test_no_sprint_means_nothing_to_do(storage):
+    fake = FakeCortex()
+    g = guard(storage, fake)
+    g.on_events([ActivityChanged(at(0), "working", "away")])
+    g.on_tick(Tick(at(300), snapshot("away"), None))
+    assert SPRINT_KEY not in fake.data and storage.open_sprint_pause() is None
+
+
+def test_sprint_never_resumes_after_you_left_again(storage):
+    fake = FakeCortex()
+    fake.data[SPRINT_KEY] = running_sprint(ms(at(2400)))
+    g = guard(storage, fake)
+    g.on_events([ActivityChanged(at(0), "working", "away")])
+    g.on_tick(Tick(at(300), snapshot("away"), None))
+    assert fake.data[SPRINT_KEY]["pausedTimeLeft"] == 2400
+
+    fake.down = True
+    g.on_events([ActivityChanged(at(1000), "away", "working")])
+    g.on_tick(Tick(at(1030), snapshot("working"), None))  # resume fails, retry scheduled
+    g.on_events([ActivityChanged(at(1040), "working", "away")])  # gone again before the retry
+    fake.down = False
+    g.on_tick(Tick(at(1100), snapshot("away"), None))
+    assert fake.data[SPRINT_KEY]["isPaused"] and fake.data[SPRINT_KEY]["pausedTimeLeft"] == 2400
