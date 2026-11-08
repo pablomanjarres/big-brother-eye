@@ -79,3 +79,22 @@ def test_a_sprint_logged_later_is_not_double_counted(storage):
     sync.on_tick(Tick(at(900), working(900), None))
     total = sum(e["duration"] for e in fake.data[KEY])
     assert total == 15  # 5 desk minutes + 10 sprint minutes, never 25
+
+
+def test_non_object_entries_are_kept_and_ignored():
+    merged = merge_session(["note", 7, None], "bbeye-1", at(0), at(300), "Desk work")
+    assert [e for e in merged if not isinstance(e, dict)] == ["note", 7, None]
+    assert [e["duration"] for e in merged if isinstance(e, dict)] == [5]
+
+
+def test_part_minutes_add_up_to_the_session():
+    sprints = [sprint(84, 144, "a"), sprint(228, 288, "b")]  # leaves three 84-second parts
+    merged = merge_session(sprints, "bbeye-1", at(0), at(372), "Desk work")
+    ours = [e["duration"] for e in merged if e["id"].startswith("bbeye-1")]
+    assert len(ours) == 3 and sum(ours) == round(3 * 84 / 60)
+
+
+def test_a_sprint_after_midnight_counts_as_covered():
+    midnight_overlap = [(at(600), at(1200))]
+    merged = merge_session([], "bbeye-1", at(0), at(1800), "Desk work", also_taken=midnight_overlap)
+    assert sum(e["duration"] for e in merged) == 20
