@@ -198,3 +198,51 @@ def build_eye(config: Config, secrets: dict[str, str], storage: Storage | None =
         detect=detector.detect,
         identify=recognizer.identify,
         idle_seconds=input_idle_reader(),
+        judge=build_judge(config, secrets),
+        reactors=build_reactors(config, secrets, storage, alerts),
+    )
+
+
+def build_reactors(
+    config: Config, secrets: dict[str, str], storage: Storage, alerts: AlertService
+) -> list[Reactor]:
+    from bbeye.reactors.visitors import VisitorWatch
+
+    reactors: list[Reactor] = [VisitorWatch(storage, alerts, config.visitors)]
+    cortex = None
+    if config.cortex.enabled:
+        from bbeye.integrations.cortex import CortexClient
+
+        cortex = CortexClient(config.cortex.url)
+        if config.cortex.track_work_hours:
+            from bbeye.reactors.work_hours import WorkHoursSync
+
+            if config.cortex.project_id:
+                reactors.append(WorkHoursSync(storage, cortex, config.cortex.project_id))
+            else:
+                log.warning("cortex.project_id is empty, so work hours are not sent to Cortex")
+        if config.cortex.pause_sprint:
+            from bbeye.reactors.sprint import SprintGuard
+
+            reactors.append(
+                SprintGuard(
+                    storage,
+                    cortex,
+                    timedelta(minutes=config.cortex.pause_after_min),
+                    resume=config.cortex.resume_sprint,
+                )
+            )
+
+    from bbeye.calendars.base import CalendarUnavailable
+    from bbeye.calendars.factory import build_calendar_source
+
+    try:
+        source = build_calendar_source(config, secrets, cortex)
+    except CalendarUnavailable as error:
+        log.warning("Calendar disabled: %s", error)
+        source = None
+    if source is not None:
+        from bbeye.reactors.calendar_watch import CalendarWatch
+
+        reactors.append(CalendarWatch(source, alerts, config.calendar))
+    return reactors
