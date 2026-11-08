@@ -20,7 +20,7 @@ class RulesJudge:
             return Verdict("phone", 0.8, self.name, "phone in hand")
 
         labels = set(observation.object_labels)
-        idle = observation.input_idle_s if self.signals.use_input_idle else None
+        idle = observation.input_idle_s
         if idle is not None:
             if idle <= self.signals.input_active_s:
                 return Verdict("working", 0.9, self.name, "keyboard/mouse in use")

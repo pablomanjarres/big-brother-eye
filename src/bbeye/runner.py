@@ -100,7 +100,7 @@ class Eye:
         observation = None
         keep_going = True
         if frame is not None:
-            idle = self.idle_seconds() if self.config.signals.use_input_idle else None
+            idle = self.idle_seconds()
             observation = build_observation(
                 now, self.config.owner, self.detect(frame), self.identify(frame), idle, self.memory, frame
             )
@@ -176,7 +176,7 @@ def build_eye(config: Config, secrets: dict[str, str], storage: Storage | None =
     """Composition root: the only place that knows which concrete parts are used."""
     from bbeye.judges.factory import build_judge
     from bbeye.notify.factory import build_notifiers
-    from bbeye.signals.idle import input_idle_reader
+    from bbeye.signals.idle import build_idle_reader
     from bbeye.vision.detector import YoloDetector
     from bbeye.vision.faces import FaceRecognizer
     from bbeye.vision.models import FACE_DETECTOR, FACE_RECOGNIZER, resolve_model
@@ -199,7 +199,7 @@ def build_eye(config: Config, secrets: dict[str, str], storage: Storage | None =
         camera=Camera(config.camera.source, config.camera.width, config.camera.height),
         detect=detector.detect,
         identify=recognizer.identify,
-        idle_seconds=input_idle_reader(),
+        idle_seconds=build_idle_reader(config.signals.use_input_idle, config.signals.idle_urls),
         judge=build_judge(config, secrets),
         reactors=build_reactors(config, secrets, storage, alerts),
     )
