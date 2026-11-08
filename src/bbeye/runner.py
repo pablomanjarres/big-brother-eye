@@ -25,9 +25,11 @@ from bbeye.tracker import ActivityChanged, ActivityTracker, Event, WorkEnded, Wo
 
 log = logging.getLogger(__name__)
 
+LEAVING_WINDOW = timedelta(seconds=30)  # room motion this soon after leaving the desk means you left
+
 
 class RoomSignal(Protocol):
-    def person_moved_since(self, moment: datetime) -> bool: ...
+    def person_moved_since(self, moment: datetime, within: timedelta | None = None) -> bool: ...
 
     @property
     def last_person_motion(self) -> datetime | None: ...
@@ -134,11 +136,15 @@ class Eye:
         return keep_going
 
     def _seen_leaving(self, observation: Observation) -> bool:
-        """The owner left the desk camera and the room camera then saw someone walk by."""
+        """The owner left the desk camera and the room camera saw someone walk by right after.
+
+        Only motion soon after the owner vanished counts as leaving; someone walking by much
+        later (while the owner sits unrecognized) does not shorten the away grace.
+        """
         last_seen = self._owner_last_seen
         if self.room is None or last_seen is None or observation.owner_present:
             return False
-        return self.room.person_moved_since(last_seen)
+        return self.room.person_moved_since(last_seen, within=LEAVING_WINDOW)
 
     def _dispatch(self, events: list[Event]) -> None:
         for event in events:
@@ -288,11 +294,11 @@ def build_room_watcher(config: Config):
     from bbeye.vision.room import RoomWatcher
 
     room = config.room_camera
-    # Its own detector: the model is not shared across threads.
-    detector = YoloDetector(config.detector, resolve_model(config.detector.model))
-    watcher = RoomWatcher(
-        Camera(room.source, room.width, room.height), detector.detect, interval_s=room.interval_s
-    )
+    # Its own detector (the model is not shared across threads) on small images, so it stays
+    # cheap next to the desk loop; it only needs to see that a person is there and moving.
+    detector = YoloDetector(config.detector, resolve_model(config.detector.model), image_size=320)
+    camera = Camera(room.source, room.width, room.height, flush_frames=0)  # read often; no flush needed
+    watcher = RoomWatcher(camera, detector.detect, interval_s=room.interval_s)
     watcher.start()
     log.info("Room camera %r watching for people leaving", room.source)
     return watcher
