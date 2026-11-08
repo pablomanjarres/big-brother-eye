@@ -198,3 +198,122 @@ def cmd_alerts(args: argparse.Namespace, config: Config) -> int:
     return 0
 
 
+def cmd_mcp(args: argparse.Namespace, config: Config) -> int:
+    from bbeye.mcp_server import build_server, http_app, token_error
+
+    storage = _open_storage(config)
+    server = build_server(storage)
+    if not args.http:
+        server.run("stdio")
+        return 0
+    token = load_secrets().get("BBEYE_MCP_TOKEN", "")
+    if problem := token_error(token):
+        print(f"Cannot serve MCP over HTTP: {problem} (in secrets.env).")
+        return 1
+    import uvicorn
+
+    app = http_app(server, token, config.mcp.host, config.mcp.allowed_hosts)
+    print(f"MCP over HTTP at http://{config.mcp.host}:{config.mcp.port}/mcp (bearer token required)")
+    uvicorn.run(app, host=config.mcp.host, port=config.mcp.port, log_level="warning")
+    return 0
+
+
+def cmd_service(args: argparse.Namespace, config: Config) -> int:
+    from bbeye import service
+
+    try:
+        print(service.install(data_dir() / "logs") if args.action == "install" else service.uninstall())
+    except RuntimeError as error:
+        print(error)
+        return 1
+    return 0
+
+
+def cmd_notify_test(args: argparse.Namespace, config: Config) -> int:
+    from bbeye.alerts import AlertService
+    from bbeye.notify.factory import build_notifiers
+
+    notifiers = build_notifiers(load_secrets())
+    service = AlertService(_open_storage(config), notifiers)
+    now = now_utc()
+    service.raise_alert(
+        now, "test", "Big Brother Eye test", "If you can read this, alerts work.", f"test:{now.isoformat()}"
+    )
+    alert = service.storage.alerts(limit=1)[0]
+    service.storage.acknowledge_alert(alert.id, now)
+    print("Sent through: " + ", ".join(n.name for n in notifiers))
+    return 0
+
+
+# ── parser ─────────────────────────────────────────────────────────────────────
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="bbeye", description="Big Brother Eye: a private, YOLO-powered desk monitor."
+    )
+    parser.add_argument("--version", action="version", version=f"bbeye {__version__}")
+    parser.add_argument("--config", type=Path, help="path to config.toml")
+    parser.add_argument("-v", "--verbose", action="store_true")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser("init", help="write an example config and secrets file")
+    p.add_argument("--force", action="store_true")
+    p.set_defaults(func=cmd_init)
+
+    sub.add_parser("doctor", help="check camera, models, keys and integrations").set_defaults(func=cmd_doctor)
+
+    p = sub.add_parser("enroll", help="teach the Eye your face (stores embeddings, not images)")
+    p.add_argument("--name", help="who is enrolling (default: owner from config)")
+    p.add_argument("--seconds", type=float, default=20.0)
+    p.add_argument("--show", action="store_true", help="show the camera while enrolling")
+    p.add_argument("--forget", action="store_true", help="delete this person's face samples")
+    p.set_defaults(func=cmd_enroll)
+
+    p = sub.add_parser("run", help="start watching")
+    p.add_argument("--show", action="store_true", help="preview window with detections")
+    p.set_defaults(func=cmd_run)
+
+    sub.add_parser("status", help="what the Eye sees right now").set_defaults(func=cmd_status)
+
+    p = sub.add_parser("hours", help="work sessions for a day")
+    p.add_argument("--day", help="YYYY-MM-DD (default: today)")
+    p.set_defaults(func=cmd_hours)
+
+    p = sub.add_parser("alerts", help="recent alerts")
+    p.add_argument("--all", action="store_true", help="include acknowledged alerts")
+    p.add_argument("--limit", type=int, default=20)
+    p.set_defaults(func=cmd_alerts)
+
+    p = sub.add_parser("mcp", help="serve the MCP tools (stdio by default)")
+    p.add_argument("--http", action="store_true", help="serve over HTTP with a bearer token")
+    p.set_defaults(func=cmd_mcp)
+
+    p = sub.add_parser("service", help="start automatically at login")
+    p.add_argument("action", choices=["install", "uninstall"])
+    p.set_defaults(func=cmd_service)
+
+    sub.add_parser("notify-test", help="send a test alert to every notifier").set_defaults(
+        func=cmd_notify_test
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    if args.config:
+        import os
+
+        os.environ["BBEYE_CONFIG_DIR"] = str(args.config.expanduser().resolve().parent)
+    # Logs go to stderr (and a file for long-running commands); stdout stays clean for stdio MCP.
+    setup_logging(args.verbose, to_file=args.command in ("run", "mcp"))
+    try:
+        config = load_config(args.config.expanduser() if args.config else None)
+    except ConfigError as error:
+        print(f"Config error: {error}", file=sys.stderr)
+        return 2
+    return int(args.func(args, config) or 0)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
