@@ -16,7 +16,7 @@ def client(handler):
 
 def test_remote_reader_reads_the_number():
     read = remote_idle_reader(
-        "http://mac.test:8766/idle", client(lambda r: httpx.Response(200, json={"idle_s": 12}))
+        "http://mac.test:8771/idle", client(lambda r: httpx.Response(200, json={"idle_s": 12}))
     )
     assert read() == 12.0
 
@@ -28,7 +28,7 @@ def test_remote_reader_skips_an_unreachable_computer_for_a_while():
         calls.append(1)
         raise httpx.ConnectError("down")
 
-    read = remote_idle_reader("http://mac.test:8766/idle", client(handler))
+    read = remote_idle_reader("http://mac.test:8771/idle", client(handler))
     assert [read() for _ in range(5)] == [None] * 5
     assert len(calls) == 1
 
