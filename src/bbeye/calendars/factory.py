@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from bbeye.calendars.base import CalendarSource
-from bbeye.config import Config
+from bbeye.calendars.base import CalendarSource, CalendarUnavailable
+from bbeye.config import Config, ConfigError, time_zone
 from bbeye.integrations.cortex import CortexClient
 
 
@@ -14,7 +14,11 @@ def build_calendar_source(
     if config.calendar.source == "cortex":
         from bbeye.calendars.cortex import CortexCalendar
 
-        return CortexCalendar(cortex or CortexClient(config.cortex.url))
+        try:
+            zone = time_zone(config.cortex.time_zone)
+        except ConfigError as error:
+            raise CalendarUnavailable(str(error)) from error
+        return CortexCalendar(cortex or CortexClient(config.cortex.url), zone=zone)
     if config.calendar.source == "ics":
         from bbeye.calendars.ics import IcsCalendar
 

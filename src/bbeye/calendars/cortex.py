@@ -2,21 +2,22 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 
 from bbeye.calendars.base import CalendarEvent, CalendarUnavailable
-from bbeye.integrations.cortex import CortexClient, CortexError
+from bbeye.integrations.cortex import CortexClient, CortexError, cortex_day
 from bbeye.timeutil import parse_iso
 
 
 class CortexCalendar:
-    def __init__(self, cortex: CortexClient) -> None:
+    def __init__(self, cortex: CortexClient, zone: tzinfo | None = None) -> None:
         self.cortex = cortex
+        self.zone = zone  # the zone of the computer running Cortex; None = this computer's
 
     def events(self, start: datetime, end: datetime) -> list[CalendarEvent]:
         try:
             raw = self.cortex.calendar_events(
-                start.astimezone().date(), (end.astimezone() + timedelta(days=1)).date()
+                cortex_day(start, self.zone), cortex_day(end, self.zone) + timedelta(days=1)
             )
         except CortexError as error:
             raise CalendarUnavailable(str(error)) from error
@@ -26,8 +27,8 @@ class CortexCalendar:
                 event = CalendarEvent(
                     id=str(item.get("id") or ""),
                     title=str(item.get("title") or ""),
-                    start=_moment(item["startDate"]),
-                    end=_moment(item["endDate"]),
+                    start=_moment(item["startDate"], self.zone),
+                    end=_moment(item["endDate"], self.zone),
                     calendar=str(item.get("calendar") or ""),
                     all_day=bool(item.get("isAllDay")),
                     notes=str(item.get("notes") or ""),
@@ -39,6 +40,8 @@ class CortexCalendar:
         return events
 
 
-def _moment(value: str) -> datetime:
+def _moment(value: str, zone: tzinfo | None) -> datetime:
     moment = parse_iso(value)
-    return moment if moment.tzinfo else moment.astimezone()
+    if moment.tzinfo:
+        return moment
+    return moment.replace(tzinfo=zone) if zone else moment.astimezone()  # floating = Cortex's local time

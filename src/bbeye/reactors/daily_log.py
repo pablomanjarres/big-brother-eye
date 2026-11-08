@@ -13,7 +13,7 @@ import math
 from datetime import datetime, timedelta, tzinfo
 from typing import Any
 
-from bbeye.integrations.cortex import NO_CHANGE, CortexClient, CortexError
+from bbeye.integrations.cortex import NO_CHANGE, CortexClient, CortexError, cortex_day
 from bbeye.intervals import Interval, free_parts
 from bbeye.reactors.base import Tick
 from bbeye.reactors.outbox import flush_outbox
@@ -31,7 +31,7 @@ def daily_key(started_at: datetime, zone: tzinfo | None = None) -> str:
 
     ``zone`` is that zone (``cortex.time_zone``); None means this computer's zone.
     """
-    return f"cortex-daily-sessions-{started_at.astimezone(zone).date().isoformat()}"
+    return f"cortex-daily-sessions-{cortex_day(started_at, zone).isoformat()}"
 
 
 def _span(entry: Any) -> Interval | None:
