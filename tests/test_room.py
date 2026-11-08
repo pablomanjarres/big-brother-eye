@@ -32,6 +32,23 @@ def test_motion_detector_needs_change():
     assert mask is not None and mask.any()
 
 
+def test_a_lighting_change_is_not_motion():
+    motion = MotionDetector()
+    motion.update(blank())
+    assert motion.update(np.full((H, W, 3), 200, dtype=np.uint8)) is None  # the whole picture changed
+
+
+def test_only_motion_soon_after_leaving_counts():
+    clock = iter([at(40)])
+    frames = [blank(), with_patch(300, 400)]
+    walker = Detection("person", 0.8, Box(300, 60, 400, 300))
+    watcher = RoomWatcher(Frames(frames), lambda f: [walker], clock=lambda: next(clock))
+    watcher.step()
+    watcher.step()  # motion recorded at t=40
+    assert watcher.person_moved_since(at(30), within=timedelta(seconds=30))
+    assert not watcher.person_moved_since(at(0), within=timedelta(seconds=30))  # 40 s after leaving: too late
+
+
 def test_motion_inside_a_box():
     motion = MotionDetector()
     motion.update(blank())
@@ -84,8 +101,10 @@ class FakeRoom:
     def last_person_motion(self):
         return self.moved_at
 
-    def person_moved_since(self, moment):
-        return self.moved_at is not None and self.moved_at > moment
+    def person_moved_since(self, moment, within=None):
+        if self.moved_at is None or self.moved_at <= moment:
+            return False
+        return within is None or self.moved_at - moment <= within
 
     def stop(self):
         pass
