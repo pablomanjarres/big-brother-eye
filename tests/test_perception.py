@@ -76,3 +76,20 @@ def test_preview_draws_faceless_shapes_without_counting_them():
     frame = np.zeros((720, 1280, 3), dtype=np.uint8)
     out = draw(frame, obs, Verdict("working", 0.9, "rules"))
     assert out.shape == frame.shape and out.any() and not frame.any()
+
+
+def test_unclear_face_keeps_the_owner_but_a_different_face_does_not():
+    memory = IdentityMemory(45)
+    build([PERSON], [OWNER_FACE], memory, t=0)
+    turned = Face(Box(205, 150, 305, 260), None, 0.30)  # below the 0.363 match threshold
+    assert build([PERSON], [turned], memory, t=2).owner_present
+    stranger = Face(Box(205, 150, 305, 260), None, 0.05)
+    obs = build([PERSON], [stranger], memory, t=4)
+    assert not obs.owner_present and len(obs.others) == 1
+
+
+def test_a_long_look_away_at_an_unclear_angle_keeps_the_owner():
+    memory = IdentityMemory(45)
+    build([PERSON], [OWNER_FACE], memory, t=0)
+    side = Face(Box(205, 150, 305, 260), None, 0.28)
+    assert all(build([PERSON], [side], memory, t=t).owner_present for t in range(2, 300, 2))
