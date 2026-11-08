@@ -25,6 +25,17 @@ from bbeye.tracker import ActivityChanged, ActivityTracker, Event, WorkEnded, Wo
 
 log = logging.getLogger(__name__)
 
+LEAVING_WINDOW = timedelta(seconds=30)  # room motion this soon after leaving the desk means you left
+
+
+class RoomSignal(Protocol):
+    def person_moved_since(self, moment: datetime, within: timedelta | None = None) -> bool: ...
+
+    @property
+    def last_person_motion(self) -> datetime | None: ...
+
+    def stop(self) -> None: ...
+
 
 class FrameSource(Protocol):
     def read(self) -> np.ndarray | None: ...
@@ -44,6 +55,7 @@ class Eye:
     reactors: list[Reactor] = field(default_factory=list)
     clock: Callable[[], datetime] = now_utc
     on_frame: Callable[[np.ndarray, Observation, Verdict], bool] | None = None  # return False to stop
+    room: RoomSignal | None = None  # optional second camera that sees the way out
 
     def __post_init__(self) -> None:
         now = self.clock()
@@ -52,6 +64,7 @@ class Eye:
             self.config.faces.identity_hold_s, continuity_threshold=self.config.faces.continuity_threshold
         )
         self._pruned_at: datetime | None = None
+        self._owner_last_seen: datetime | None = None
         self.stopped = threading.Event()
 
     # ── lifecycle ──────────────────────────────────────────────────────────────
@@ -91,6 +104,8 @@ class Eye:
         self.storage.end_open_visits(self.clock())
         self.storage.set_meta({"camera": "stopped", "running": "0"})
         self.camera.close()
+        if self.room is not None:
+            self.room.stop()
 
     # ── one sample ─────────────────────────────────────────────────────────────
 
@@ -105,7 +120,9 @@ class Eye:
                 now, self.config.owner, self.detect(frame), self.identify(frame), idle, self.memory, frame
             )
             verdict = self.judge.judge(observation)
-            events = self.tracker.update(now, verdict.activity)
+            if observation.owner_present:
+                self._owner_last_seen = now
+            events = self.tracker.update(now, verdict.activity, seen_leaving=self._seen_leaving(observation))
             self.storage.record_observation(observation, verdict)
             self._dispatch(events)
             snapshot = self.tracker.snapshot()
@@ -117,6 +134,17 @@ class Eye:
         self._write_meta(now, observation)
         self._prune(now)
         return keep_going
+
+    def _seen_leaving(self, observation: Observation) -> bool:
+        """The owner left the desk camera and the room camera saw someone walk by right after.
+
+        Only motion soon after the owner vanished counts as leaving; someone walking by much
+        later (while the owner sits unrecognized) does not shorten the away grace.
+        """
+        last_seen = self._owner_last_seen
+        if self.room is None or last_seen is None or observation.owner_present:
+            return False
+        return self.room.person_moved_since(last_seen, within=LEAVING_WINDOW)
 
     def _dispatch(self, events: list[Event]) -> None:
         for event in events:
@@ -156,6 +184,8 @@ class Eye:
             "activity": snapshot.activity,
             "activity_since": iso(snapshot.since),
         }
+        if self.room is not None and self.room.last_person_motion is not None:
+            values["room_last_motion"] = iso(self.room.last_person_motion)
         if observation is not None:
             values["owner_present"] = "1" if observation.owner_present else "0"
             values["others"] = str(len(observation.others))
@@ -197,6 +227,7 @@ def build_eye(config: Config, secrets: dict[str, str], storage: Storage | None =
         config=config,
         storage=storage,
         camera=Camera(config.camera.source, config.camera.width, config.camera.height),
+        room=build_room_watcher(config),
         detect=detector.detect,
         identify=recognizer.identify,
         idle_seconds=build_idle_reader(config.signals.use_input_idle, config.signals.idle_urls),
@@ -252,3 +283,22 @@ def build_reactors(
 
         reactors.append(CalendarWatch(source, alerts, config.calendar))
     return reactors
+
+
+def build_room_watcher(config: Config):
+    """A started watcher for the optional room camera, or None."""
+    if config.room_camera.source == "":
+        return None
+    from bbeye.vision.detector import YoloDetector
+    from bbeye.vision.models import resolve_model
+    from bbeye.vision.room import RoomWatcher
+
+    room = config.room_camera
+    # Its own detector (the model is not shared across threads) on small images, so it stays
+    # cheap next to the desk loop; it only needs to see that a person is there and moving.
+    detector = YoloDetector(config.detector, resolve_model(config.detector.model), image_size=320)
+    camera = Camera(room.source, room.width, room.height, flush_frames=0)  # read often; no flush needed
+    watcher = RoomWatcher(camera, detector.detect, interval_s=room.interval_s)
+    watcher.start()
+    log.info("Room camera %r watching for people leaving", room.source)
+    return watcher

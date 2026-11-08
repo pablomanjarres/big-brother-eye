@@ -54,6 +54,23 @@ def run_checks(config: Config, secrets: dict[str, str]) -> list[Check]:
     else:
         add(Check("OK", "camera", f"{frame.shape[1]}x{frame.shape[0]} from source {config.camera.source!r}"))
 
+    if config.room_camera.source != "":
+        room = config.room_camera
+        with Camera(room.source, room.width, room.height) as camera:
+            room_frame = camera.read()
+        if room_frame is None:
+            add(Check("FAIL", "room camera", f"could not read room_camera.source {room.source!r}"))
+        else:
+            add(
+                Check(
+                    "OK",
+                    "room camera",
+                    f"{room_frame.shape[1]}x{room_frame.shape[0]} from source {room.source!r}",
+                )
+            )
+    else:
+        add(Check("SKIP", "room camera", "none configured (optional: notices you leaving faster)"))
+
     faces = storage.faces()
     if config.owner in faces:
         add(Check("OK", "owner face", f"{len(faces[config.owner])} samples for {config.owner!r}"))

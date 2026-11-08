@@ -10,6 +10,12 @@ interval_s = 2.0                 # seconds between samples
 width = 1280
 height = 720
 
+[room_camera]
+source = ""                      # optional second camera that sees the way out of the room, e.g. 0
+interval_s = 0.15
+width = 640
+height = 360
+
 [detector]
 model = "yolo11n.pt"             # yolo11n.pt or yolo11s.pt (downloaded and verified), or a local path
 confidence = 0.4
@@ -39,6 +45,7 @@ send_images = false              # true sends camera frames to OpenRouter. Off b
 confirm_s = 30.0
 away_after_s = 120.0
 work_gap_s = 300.0
+exit_confirm_s = 10.0            # with a room camera: away is confirmed this fast after you are seen leaving
 max_gap_s = 120.0                # no frames for this long (sleep, camera busy) and unseen time is not work
 
 [storage]

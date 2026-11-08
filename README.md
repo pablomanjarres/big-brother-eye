@@ -111,6 +111,17 @@ BBEYE_MCP_TOKEN=...          # 24+ random characters, for MCP over HTTP
 
 Model judges fall back to the rules whenever they are slow, rate limited or missing a key. Absence is always decided locally.
 
+## A second camera for the way out
+
+At a desk, a face drops out of view often, so leaving is only confirmed after `away_after_s` (2 minutes). If a second camera sees the way out of the room, add it:
+
+```toml
+[room_camera]
+source = 0          # the desk camera can then be another index
+```
+
+The Eye checks it a few times a second for motion and runs person detection only when something moves. A person counts only when the motion is inside their box, so a coat or a door frame that looks like a person never does. When you leave the desk camera and the room camera then sees someone walk by, absence is confirmed after `tracker.exit_confirm_s` (10 seconds), still dated to when you left the desk. Work hours stop and a running sprint pauses from that moment.
+
 ## Camera on one computer, keyboard on another
 
 The keyboard and mouse signal comes from the computer running the Eye. If the camera sits on one computer and you type on another, share the typing computer's idle time with the Eye:

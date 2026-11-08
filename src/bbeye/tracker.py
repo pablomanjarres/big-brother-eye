@@ -85,7 +85,8 @@ class ActivityTracker:
             self.activity, self.since, self.session_id, self.session_started_at, self.last_working_at
         )
 
-    def update(self, at: datetime, activity: Activity) -> list[Event]:
+    def update(self, at: datetime, activity: Activity, seen_leaving: bool = False) -> list[Event]:
+        """``seen_leaving``: another camera saw the owner walk away, so absence needs less proof."""
         events: list[Event] = []
         last = self._last_seen_at
         if last is not None and (at - last).total_seconds() > self.config.max_gap_s:
@@ -105,7 +106,7 @@ class ActivityTracker:
             horizon = 2 * max(self.config.confirm_s, self.config.away_after_s)
             while self._run and (at - self._run[0][0]).total_seconds() > horizon:
                 self._run.popleft()
-            events.extend(self._maybe_switch(at))
+            events.extend(self._maybe_switch(at, seen_leaving))
 
         if self.activity == "working":
             pending = next((t for t, a in self._run if a != "working"), None)
@@ -118,14 +119,17 @@ class ActivityTracker:
             events.append(self._end_session(ended_at))
         return events
 
-    def _maybe_switch(self, at: datetime) -> list[Event]:
+    def _maybe_switch(self, at: datetime, seen_leaving: bool = False) -> list[Event]:
         others = [(t, a) for t, a in self._run if a != self.activity]
         if not others or len(others) / len(self._run) < SWITCH_SHARE:
             return []
         counts = Counter(a for _, a in others)
         target = max(counts, key=lambda a: (counts[a], max(t for t, b in others if b == a)))
         first = next(t for t, a in others if a == target)
-        needed = self.config.away_after_s if target == "away" else self.config.confirm_s
+        if target == "away":
+            needed = self.config.exit_confirm_s if seen_leaving else self.config.away_after_s
+        else:
+            needed = self.config.confirm_s
         if (at - first).total_seconds() < needed:
             return []
         return self._switch(target, first)

@@ -28,6 +28,7 @@ def eye_status(storage: Storage, now: datetime) -> dict[str, Any]:
         "others_in_room": int(meta.get("others", "0")) if online else None,
         "work_session_started_at": iso(session.started_at) if session else None,
         "worked_today_minutes": work_summary(storage, now, now)["total_minutes"],
+        "room_last_motion": meta.get("room_last_motion"),
         "unacknowledged_alerts": storage.unacknowledged_alert_count(),
     }
 

@@ -24,11 +24,12 @@ def _quiet_ultralytics() -> None:
 
 
 class YoloDetector:
-    def __init__(self, config: DetectorConfig, model_path: Path) -> None:
+    def __init__(self, config: DetectorConfig, model_path: Path, image_size: int | None = None) -> None:
         _quiet_ultralytics()
         from ultralytics import YOLO
 
         self.config = config
+        self.image_size = image_size  # None = the model's default (640)
         self._model = YOLO(str(model_path))
         names: dict[int, str] = self._model.names
         self._classes = [index for index, name in names.items() if name in INTERESTING]
@@ -42,6 +43,7 @@ class YoloDetector:
             classes=self._classes,
             device=self.config.device or None,
             verbose=False,
+            **({"imgsz": self.image_size} if self.image_size else {}),
         )[0]
         boxes = result.boxes
         if boxes is None or len(boxes) == 0:
