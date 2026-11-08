@@ -63,3 +63,16 @@ def test_describe_has_no_surprises():
     obs = build([PERSON, PHONE], [OWNER_FACE], IdentityMemory(45), idle=12.4)
     text = obs.describe()
     assert "holding a phone" in text and "12" in text
+
+
+def test_preview_draws_faceless_shapes_without_counting_them():
+    import numpy as np
+
+    from bbeye.observation import Verdict
+    from bbeye.vision.overlay import draw
+
+    fixture = Detection("person", 0.4, Box(0, 0, 160, 660))
+    obs = build([PERSON, fixture], [OWNER_FACE], IdentityMemory(45))
+    frame = np.zeros((720, 1280, 3), dtype=np.uint8)
+    out = draw(frame, obs, Verdict("working", 0.9, "rules"))
+    assert out.shape == frame.shape and out.any() and not frame.any()
