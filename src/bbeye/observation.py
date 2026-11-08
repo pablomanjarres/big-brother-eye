@@ -83,7 +83,16 @@ class Observation:
 
     @property
     def others(self) -> tuple[Person, ...]:
-        return tuple(person for person in self.people if person.name != self.owner)
+        """Other people, counted only on face evidence (a face seen now, or a known name carried over).
+
+        A person-shaped detection that never shows a face, such as a coat or a door frame at the
+        edge of the image, is not a visitor.
+        """
+        return tuple(
+            person
+            for person in self.people
+            if person.name != self.owner and (person.face_visible or person.name is not None)
+        )
 
     @property
     def object_labels(self) -> list[str]:

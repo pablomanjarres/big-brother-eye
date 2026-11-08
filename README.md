@@ -15,7 +15,7 @@ camera ─► YOLO (people, laptop, phone…) ─► face recognition ─► jud
 | --- | --- |
 | Are you at the desk? | YOLO finds people; OpenCV face recognition (YuNet + SFace) says which one is you. Your name stays on you for a while when you turn away. |
 | Are you working? | Keyboard and mouse activity on the computer running the Eye, the objects around you (laptop, keyboard, book), and a phone in your hand. Optionally a cheap model makes the call. |
-| Is someone else here? | Any person who is not you. Each visit is recorded with a start, an end and a head count. |
+| Is someone else here? | Anyone whose face the camera sees and who is not you. Shapes that never show a face (a coat, a door frame) do not count. Each visit is recorded with a start, an end and a head count. |
 | How long did you work? | Work sessions with real start and end times, back-dated to when things actually changed. |
 
 Activities are `working`, `phone`, `break` and `away`. Short blips do not count: a new activity has to last `confirm_s` (30 s) and absence has to last `away_after_s` (2 min). Time the camera could not see (laptop asleep, camera unplugged or busy in a video call) is never counted as work.
