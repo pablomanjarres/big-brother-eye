@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import cv2
 import numpy as np
@@ -27,18 +27,29 @@ SMALL = (160, 90)  # motion is measured on a tiny grayscale copy
 class MotionDetector:
     """Pixels that changed since the previous frame, as a small boolean mask."""
 
-    def __init__(self, pixel_threshold: int = 25, min_fraction: float = 0.01) -> None:
-        self.pixel_threshold, self.min_fraction = pixel_threshold, min_fraction
+    def __init__(
+        self, pixel_threshold: int = 25, min_fraction: float = 0.01, max_fraction: float = 0.4
+    ) -> None:
+        self.pixel_threshold, self.min_fraction, self.max_fraction = (
+            pixel_threshold,
+            min_fraction,
+            max_fraction,
+        )
         self._previous: np.ndarray | None = None
 
     def update(self, frame: np.ndarray) -> np.ndarray | None:
-        """The motion mask, or None for the first frame or when too little moved."""
+        """The motion mask, or None for the first frame, too little change, or a lighting change.
+
+        When most of the picture changes at once (a lamp, auto-exposure, a reconnect) it is the
+        light, not a person, and a static shape would otherwise look like it moved.
+        """
         small = cv2.GaussianBlur(cv2.cvtColor(cv2.resize(frame, SMALL), cv2.COLOR_BGR2GRAY), (5, 5), 0)
         previous, self._previous = self._previous, small
         if previous is None:
             return None
         mask = cv2.absdiff(small, previous) > self.pixel_threshold
-        return mask if mask.mean() >= self.min_fraction else None
+        changed = float(mask.mean())
+        return mask if self.min_fraction <= changed <= self.max_fraction else None
 
 
 def motion_inside(mask: np.ndarray, box: Box, frame_shape: tuple[int, ...]) -> float:
@@ -84,9 +95,13 @@ class RoomWatcher:
             self._last_person_motion = self.clock()
         return True
 
-    def person_moved_since(self, moment: datetime) -> bool:
+    def person_moved_since(self, moment: datetime, within: timedelta | None = None) -> bool:
+        """A moving person was seen after ``moment`` (and, with ``within``, not later than that)."""
         with self._lock:
-            return self._last_person_motion is not None and self._last_person_motion > moment
+            seen = self._last_person_motion
+        if seen is None or seen <= moment:
+            return False
+        return within is None or seen - moment <= within
 
     @property
     def last_person_motion(self) -> datetime | None:
