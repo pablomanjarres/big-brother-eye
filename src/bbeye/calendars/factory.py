@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from bbeye.calendars.base import CalendarSource
-from bbeye.config import Config
+from bbeye.config import Config, time_zone
 from bbeye.integrations.cortex import CortexClient
 
 
@@ -14,7 +14,8 @@ def build_calendar_source(
     if config.calendar.source == "cortex":
         from bbeye.calendars.cortex import CortexCalendar
 
-        return CortexCalendar(cortex or CortexClient(config.cortex.url))
+        zone = time_zone(config.cortex.time_zone)
+        return CortexCalendar(cortex or CortexClient(config.cortex.url), zone=zone)
     if config.calendar.source == "ics":
         from bbeye.calendars.ics import IcsCalendar
 
