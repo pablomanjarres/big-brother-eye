@@ -23,6 +23,7 @@ class FakeCamera:
 
 @pytest.fixture(autouse=True)
 def fake_camera(monkeypatch):
+    monkeypatch.setattr(FakeCamera, "frame", None)
     monkeypatch.setattr(bbeye.camera, "Camera", FakeCamera)
 
 
@@ -33,6 +34,5 @@ def test_camera_check_reports_resolution_and_source():
 
 
 def test_camera_check_uses_hint_when_no_frame():
-    FakeCamera.frame = None
     check = _camera_check("camera", "rtsp://cam", 640, 480, "check camera.source")
     assert (check.level, check.name, check.message) == ("FAIL", "camera", "check camera.source")
