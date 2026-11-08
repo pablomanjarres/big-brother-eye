@@ -1,4 +1,5 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from helpers import T0, at
 from test_cortex import FakeCortex
@@ -98,3 +99,18 @@ def test_a_sprint_after_midnight_counts_as_covered():
     midnight_overlap = [(at(600), at(1200))]
     merged = merge_session([], "bbeye-1", at(0), at(1800), "Desk work", also_taken=midnight_overlap)
     assert sum(e["duration"] for e in merged) == 20
+
+
+def test_day_follows_the_cortex_time_zone():
+    late_evening_in_bogota = datetime(2026, 11, 8, 3, 0, tzinfo=UTC)
+    assert daily_key(late_evening_in_bogota, ZoneInfo("America/Bogota")) == "cortex-daily-sessions-2026-11-07"
+    assert daily_key(late_evening_in_bogota, ZoneInfo("UTC")) == "cortex-daily-sessions-2026-11-08"
+
+
+def test_sync_writes_to_the_cortex_day(storage):
+    fake = FakeCortex()
+    zone = ZoneInfo("Pacific/Kiritimati")  # UTC+14, so the day differs from most local zones
+    sync = DailyLogSync(storage, fake.client(), every=timedelta(minutes=5), clock=lambda: at(0), zone=zone)
+    sync.on_events([WorkStarted("bbeye-1", at(0)), WorkEnded("bbeye-1", at(0), at(600))])
+    sync.on_tick(Tick(at(601), working(600), None))
+    assert [e["duration"] for e in fake.data[daily_key(at(0), zone)]] == [10]
