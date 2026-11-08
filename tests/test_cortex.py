@@ -6,9 +6,10 @@ import pytest
 from helpers import at
 
 from bbeye.integrations.cortex import SPRINT_KEY, CortexClient, CortexConflict, CortexError
+from bbeye.intervals import free_parts
 from bbeye.reactors.base import Tick
 from bbeye.reactors.sprint import SprintGuard
-from bbeye.reactors.work_hours import WorkHoursSync, free_parts
+from bbeye.reactors.work_hours import WorkHoursSync
 from bbeye.tracker import ActivityChanged, TrackerSnapshot, WorkEnded, WorkStarted
 
 BASE = "http://cortex.test:3456"
