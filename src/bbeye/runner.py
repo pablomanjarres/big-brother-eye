@@ -29,6 +29,9 @@ log = logging.getLogger(__name__)
 class RoomSignal(Protocol):
     def person_moved_since(self, moment: datetime) -> bool: ...
 
+    @property
+    def last_person_motion(self) -> datetime | None: ...
+
     def stop(self) -> None: ...
 
 
@@ -175,6 +178,8 @@ class Eye:
             "activity": snapshot.activity,
             "activity_since": iso(snapshot.since),
         }
+        if self.room is not None and self.room.last_person_motion is not None:
+            values["room_last_motion"] = iso(self.room.last_person_motion)
         if observation is not None:
             values["owner_present"] = "1" if observation.owner_present else "0"
             values["others"] = str(len(observation.others))
