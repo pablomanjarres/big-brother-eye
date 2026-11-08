@@ -60,15 +60,24 @@ def run_checks(config: Config, secrets: dict[str, str]) -> list[Check]:
     else:
         add(Check("FAIL", "owner face", f"no face enrolled for {config.owner!r}: run `bbeye enroll`"))
 
-    from bbeye.signals.idle import input_idle_reader
+    from bbeye.signals.idle import input_idle_reader, remote_idle_reader
 
-    idle = input_idle_reader()() if config.signals.use_input_idle else None
-    if not config.signals.use_input_idle:
-        add(Check("SKIP", "input activity", "disabled in config"))
-    elif idle is None:
-        add(Check("WARN", "input activity", "not available on this system; camera only"))
+    if config.signals.use_input_idle:
+        idle = input_idle_reader()()
+        if idle is None:
+            add(Check("WARN", "input activity", "not available on this system"))
+        else:
+            add(Check("OK", "input activity", f"last input here {idle:.0f} s ago"))
     else:
-        add(Check("OK", "input activity", f"last input {idle:.0f} s ago"))
+        add(Check("SKIP", "input activity", "this computer's keyboard/mouse is not used"))
+    for url in config.signals.idle_urls:
+        remote = remote_idle_reader(url)()
+        if remote is None:
+            add(Check("FAIL", "remote input", f"{url} unreachable: run `bbeye idle-serve` there"))
+        else:
+            add(Check("OK", "remote input", f"{url}: last input {remote:.0f} s ago"))
+    if not config.signals.use_input_idle and not config.signals.idle_urls:
+        add(Check("WARN", "input activity", "no keyboard/mouse signal: the camera alone decides"))
 
     from bbeye.judges.factory import SECRET_FOR
 
