@@ -36,6 +36,14 @@ class CameraConfig:
 
 
 @dataclass(frozen=True)
+class RoomCameraConfig:
+    source: str | int = ""  # "" = no room camera; otherwise an index or URL like camera.source
+    interval_s: float = 0.15  # the room camera is checked a few times a second for motion
+    width: int = 640
+    height: int = 360
+
+
+@dataclass(frozen=True)
 class DetectorConfig:
     model: str = "yolo11n.pt"
     confidence: float = 0.4
@@ -71,6 +79,7 @@ class TrackerConfig:
     confirm_s: float = 30.0  # a new activity must last this long before it counts
     away_after_s: float = 120.0  # absence must last this long before you count as away
     work_gap_s: float = 300.0  # non-working time longer than this ends a work session
+    exit_confirm_s: float = 10.0  # away is confirmed this fast when the room camera sees you leave
     max_gap_s: float = 120.0  # no frames for longer than this (sleep, camera lost) ends what was seen
 
 
@@ -122,6 +131,7 @@ class McpConfig:
 class Config:
     owner: str = "me"
     camera: CameraConfig = field(default_factory=CameraConfig)
+    room_camera: RoomCameraConfig = field(default_factory=RoomCameraConfig)
     detector: DetectorConfig = field(default_factory=DetectorConfig)
     faces: FacesConfig = field(default_factory=FacesConfig)
     signals: SignalsConfig = field(default_factory=SignalsConfig)
@@ -196,9 +206,9 @@ def _coerce(value: Any, default: Any, key: str) -> Any:
         if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
             raise ConfigError(f"{key} must be a list of strings")
         return tuple(value)
-    if key == "camera.source":
+    if key in ("camera.source", "room_camera.source"):
         if isinstance(value, bool) or not isinstance(value, int | str):
-            raise ConfigError("camera.source must be a camera index (0, 1, ...) or a URL/path")
+            raise ConfigError(f"{key} must be a camera index (0, 1, ...) or a URL/path")
         return value
     if isinstance(default, int):
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
@@ -249,6 +259,12 @@ interval_s = 2.0                 # seconds between samples
 width = 1280
 height = 720
 
+[room_camera]
+source = ""                      # optional second camera that sees the way out of the room, e.g. 0
+interval_s = 0.15
+width = 640
+height = 360
+
 [detector]
 model = "yolo11n.pt"             # yolo11n.pt or yolo11s.pt (downloaded and verified), or a local path
 confidence = 0.4
@@ -278,6 +294,7 @@ send_images = false              # true sends camera frames to OpenRouter. Off b
 confirm_s = 30.0
 away_after_s = 120.0
 work_gap_s = 300.0
+exit_confirm_s = 10.0            # with a room camera: away is confirmed this fast after you are seen leaving
 max_gap_s = 120.0                # no frames for this long (sleep, camera busy) and unseen time is not work
 
 [storage]
