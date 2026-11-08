@@ -34,6 +34,7 @@ def test_values_and_types(tmp_path):
         ('[tracker]\nconfirm_s = "fast"\n', "must be a number"),
         ("[cortex]\nenabled = 1\n", "true or false"),
         ("camera = 3\n", "must be a table"),
+        ('[cortex]\ntime_zone = "Mars/Olympus"\n', "unknown time zone"),
     ],
 )
 def test_invalid_config_is_rejected(tmp_path, text, message):
@@ -75,3 +76,9 @@ def test_files_saved_with_a_windows_bom_still_load(tmp_path):
     secrets = tmp_path / "secrets.env"
     secrets.write_bytes(b"\xef\xbb\xbfPUSHCUT_API_KEY=abc\n")
     assert load_secrets(secrets)["PUSHCUT_API_KEY"] == "abc"
+
+
+def test_cortex_time_zone_loads(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('[cortex]\ntime_zone = "America/Bogota"\n')
+    assert load_config(path).cortex.time_zone == "America/Bogota"

@@ -62,6 +62,7 @@ pause_after_min = 5.0
 resume_sprint = true
 log_daily = true                 # show automatic work time on the Daily page (Deep work, Weekly rhythm)
 daily_label = "Desk work"
+time_zone = ""                   # zone of the computer running Cortex, e.g. "America/Bogota"; "" = this one
 
 [calendar]
 source = "none"                  # none | cortex | ics (set BBEYE_ICS_URL in secrets.env)

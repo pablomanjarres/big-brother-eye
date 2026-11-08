@@ -57,6 +57,7 @@ dependencies = [
     { name = "opencv-python" },
     { name = "platformdirs" },
     { name = "recurring-ical-events" },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
     { name = "ultralytics" },
     { name = "uvicorn" },
 ]
@@ -76,6 +77,7 @@ requires-dist = [
     { name = "opencv-python", specifier = ">=4.10" },
     { name = "platformdirs", specifier = ">=4.2" },
     { name = "recurring-ical-events", specifier = ">=3.3" },
+    { name = "tzdata", marker = "sys_platform == 'win32'", specifier = ">=2024.1" },
     { name = "ultralytics", specifier = ">=8.3" },
     { name = "uvicorn", specifier = ">=0.30" },
 ]

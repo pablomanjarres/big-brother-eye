@@ -14,7 +14,7 @@ import numpy as np
 
 from bbeye.alerts import AlertService
 from bbeye.camera import Camera
-from bbeye.config import Config, database_path
+from bbeye.config import Config, database_path, time_zone
 from bbeye.judges.base import Judge
 from bbeye.observation import Detection, Face, Observation, Verdict
 from bbeye.perception import IdentityMemory, build_observation
@@ -257,7 +257,8 @@ def build_reactors(
         if config.cortex.log_daily:
             from bbeye.reactors.daily_log import DailyLogSync
 
-            reactors.append(DailyLogSync(storage, cortex, config.cortex.daily_label))
+            zone = time_zone(config.cortex.time_zone)
+            reactors.append(DailyLogSync(storage, cortex, config.cortex.daily_label, zone=zone))
         if config.cortex.pause_sprint:
             from bbeye.reactors.sprint import SprintGuard
 
