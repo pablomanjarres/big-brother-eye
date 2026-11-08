@@ -30,8 +30,7 @@ log = logging.getLogger("bbeye")
 
 
 def setup_logging(verbose: bool, to_file: bool) -> None:
-    # pythonw.exe (the Windows login task) has no console, so sys.stderr is None there.
-    handlers: list[logging.Handler] = [logging.StreamHandler()] if sys.stderr is not None else []
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
     if to_file:
         logs = data_dir() / "logs"
         logs.mkdir(parents=True, exist_ok=True)
@@ -299,7 +298,19 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _ensure_std_streams() -> None:
+    """pythonw.exe (the Windows login task) starts with no stdout/stderr. Libraries that
+    write to them, or configure logging for them, would crash; give them a null device."""
+    import os
+
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115 - lives for the process
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
+
+
 def main(argv: list[str] | None = None) -> int:
+    _ensure_std_streams()
     args = build_parser().parse_args(argv)
     if args.config:
         import os

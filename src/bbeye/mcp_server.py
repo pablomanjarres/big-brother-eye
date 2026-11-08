@@ -133,7 +133,8 @@ def serve_http_in_background(
     import uvicorn
 
     app = http_app(build_server(storage), token, host, allowed_hosts)
-    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning"))
+    # log_config=None: bbeye already configured logging; uvicorn must not replace it.
+    server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="warning", log_config=None))
     thread = threading.Thread(target=server.run, name="bbeye-mcp-http", daemon=True)
     thread.start()
     logging.getLogger(__name__).info("MCP over HTTP at http://%s:%d/mcp", host, port)
