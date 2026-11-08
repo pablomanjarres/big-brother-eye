@@ -89,6 +89,8 @@ class CortexConfig:
     pause_sprint: bool = True
     pause_after_min: float = 5.0
     resume_sprint: bool = True
+    log_daily: bool = True  # show automatic work time on the Cortex Daily page
+    daily_label: str = "Desk work"
 
 
 @dataclass(frozen=True)
@@ -290,6 +292,8 @@ track_work_hours = true
 pause_sprint = true
 pause_after_min = 5.0
 resume_sprint = true
+log_daily = true                 # show automatic work time on the Daily page (Deep work, Weekly rhythm)
+daily_label = "Desk work"
 
 [calendar]
 source = "none"                  # none | cortex | ics (set BBEYE_ICS_URL in secrets.env)
