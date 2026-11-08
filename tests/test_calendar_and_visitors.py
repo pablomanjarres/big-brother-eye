@@ -2,13 +2,15 @@ from datetime import timedelta
 from zoneinfo import ZoneInfo
 
 import httpx
+import pytest
 from helpers import T0, at
 
 from bbeye.alerts import AlertService
 from bbeye.calendars.base import CalendarEvent, CalendarUnavailable
 from bbeye.calendars.cortex import CortexCalendar
+from bbeye.calendars.factory import build_calendar_source
 from bbeye.calendars.ics import IcsCalendar
-from bbeye.config import CalendarConfig, VisitorsConfig
+from bbeye.config import CalendarConfig, Config, CortexConfig, VisitorsConfig
 from bbeye.integrations.cortex import CortexClient
 from bbeye.observation import Box, Observation, Person
 from bbeye.reactors.base import Tick
@@ -132,6 +134,25 @@ def test_cortex_calendar_asks_for_days_in_the_cortex_time_zone():
     # T0 is 15:00 UTC on Nov 7, already 05:00 on Nov 8 in UTC+14.
     CortexCalendar(client, zone=ZoneInfo("Pacific/Kiritimati")).events(at(0), at(3600))
     assert asked == [("2026-11-08", "2026-11-09")]
+
+
+def test_cortex_calendar_reads_floating_times_in_the_cortex_time_zone():
+    event = {
+        "id": "e",
+        "title": "Focus",
+        "startDate": "2026-11-07T07:00:00",
+        "endDate": "2026-11-07T08:00:00",
+    }
+    transport = httpx.MockTransport(lambda request: httpx.Response(200, json=[event]))
+    client = CortexClient("http://c", client=httpx.Client(transport=transport))
+    [found] = CortexCalendar(client, zone=ZoneInfo("America/Los_Angeles")).events(at(-3600), at(7200))
+    assert found.start == T0  # 07:00 in Los Angeles (UTC-8) is 15:00 UTC
+
+
+def test_calendar_factory_reports_a_bad_cortex_time_zone():
+    config = Config(calendar=CalendarConfig(source="cortex"), cortex=CortexConfig(time_zone="Mars/Olympus"))
+    with pytest.raises(CalendarUnavailable, match="unknown time zone"):
+        build_calendar_source(config, {})
 
 
 ICS = b"""BEGIN:VCALENDAR
