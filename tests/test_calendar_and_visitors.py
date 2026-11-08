@@ -1,4 +1,5 @@
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 
 import httpx
 from helpers import T0, at
@@ -118,6 +119,19 @@ def test_cortex_calendar_parses_events():
     client = CortexClient("http://c", client=httpx.Client(transport=httpx.MockTransport(handler)))
     [found] = CortexCalendar(client).events(at(-3600), at(3600))
     assert found.title == "Deep work" and found.start == T0
+
+
+def test_cortex_calendar_asks_for_days_in_the_cortex_time_zone():
+    asked = []
+
+    def handler(request):
+        asked.append((request.url.params["start"], request.url.params["end"]))
+        return httpx.Response(200, json=[])
+
+    client = CortexClient("http://c", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    # T0 is 15:00 UTC on Nov 7, already 05:00 on Nov 8 in UTC+14.
+    CortexCalendar(client, zone=ZoneInfo("Pacific/Kiritimati")).events(at(0), at(3600))
+    assert asked == [("2026-11-08", "2026-11-09")]
 
 
 ICS = b"""BEGIN:VCALENDAR
