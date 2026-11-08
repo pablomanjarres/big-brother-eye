@@ -22,6 +22,8 @@ continuity_threshold = 0.2
 
 [signals]
 use_input_idle = true            # use keyboard/mouse activity of this computer as a work signal
+idle_urls = []                   # other computers you type on, running `bbeye idle-serve`, e.g.
+                                 # ["http://my-desktop.tailnet.ts.net:8766/idle"]
 input_active_s = 120.0
 
 [judge]

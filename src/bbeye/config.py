@@ -52,6 +52,7 @@ class FacesConfig:
 @dataclass(frozen=True)
 class SignalsConfig:
     use_input_idle: bool = True  # keyboard/mouse activity of the machine running the Eye
+    idle_urls: tuple[str, ...] = ()  # `bbeye idle-serve` on other computers you type on
     input_active_s: float = 120.0
 
 
@@ -258,6 +259,8 @@ continuity_threshold = 0.2
 
 [signals]
 use_input_idle = true            # use keyboard/mouse activity of this computer as a work signal
+idle_urls = []                   # other computers you type on, running `bbeye idle-serve`, e.g.
+                                 # ["http://my-desktop.tailnet.ts.net:8766/idle"]
 input_active_s = 120.0
 
 [judge]
