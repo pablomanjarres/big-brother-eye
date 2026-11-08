@@ -152,7 +152,7 @@ def load_config(path: Path | None = None) -> Config:
     if not path.exists():
         return Config()
     try:
-        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+        raw = tomllib.loads(path.read_text(encoding="utf-8-sig"))  # tolerate a Windows BOM
     except tomllib.TOMLDecodeError as error:
         raise ConfigError(f"{path}: {error}") from error
     return _build(Config, raw, "")
@@ -220,7 +220,7 @@ def load_secrets(path: Path | None = None) -> dict[str, str]:
     path = path or config_dir() / "secrets.env"
     values: dict[str, str] = {}
     if path.exists():
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        for number, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), start=1):
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
