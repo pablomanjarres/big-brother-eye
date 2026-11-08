@@ -44,30 +44,19 @@ def run_checks(config: Config, secrets: dict[str, str]) -> list[Check]:
         except ModelError as error:
             add(Check("FAIL", label, str(error)))
 
-    from bbeye.camera import Camera
-
-    with Camera(config.camera.source, config.camera.width, config.camera.height) as camera:
-        frame = camera.read()
-    if frame is None:
-        hint = "check camera.source; on macOS allow camera access for your terminal in System Settings"
-        add(Check("FAIL", "camera", hint))
-    else:
-        add(Check("OK", "camera", f"{frame.shape[1]}x{frame.shape[0]} from source {config.camera.source!r}"))
-
-    if config.room_camera.source != "":
-        room = config.room_camera
-        with Camera(room.source, room.width, room.height) as camera:
-            room_frame = camera.read()
-        if room_frame is None:
-            add(Check("FAIL", "room camera", f"could not read room_camera.source {room.source!r}"))
-        else:
-            add(
-                Check(
-                    "OK",
-                    "room camera",
-                    f"{room_frame.shape[1]}x{room_frame.shape[0]} from source {room.source!r}",
-                )
-            )
+    add(
+        _camera_check(
+            "camera",
+            config.camera.source,
+            config.camera.width,
+            config.camera.height,
+            "check camera.source; on macOS allow camera access for your terminal in System Settings",
+        )
+    )
+    room = config.room_camera
+    if room.source != "":
+        hint = f"could not read room_camera.source {room.source!r}"
+        add(_camera_check("room camera", room.source, room.width, room.height, hint))
     else:
         add(Check("SKIP", "room camera", "none configured (optional: notices you leaving faster)"))
 
@@ -168,3 +157,13 @@ def _calendar_check(config: Config, secrets: dict[str, str]) -> Check:
         return Check("FAIL", "calendar", str(error))
     desk = sum(is_desk_event(event, config.calendar) for event in events)
     return Check("OK", "calendar", f"{len(events)} events nearby, {desk} of them need you at the desk")
+
+
+def _camera_check(label: str, source: int | str, width: int, height: int, fail_hint: str) -> Check:
+    from bbeye.camera import Camera
+
+    with Camera(source, width, height) as camera:
+        frame = camera.read()
+    if frame is None:
+        return Check("FAIL", label, fail_hint)
+    return Check("OK", label, f"{frame.shape[1]}x{frame.shape[0]} from source {source!r}")
