@@ -1,5 +1,6 @@
 import hashlib
 import xml.dom.minidom
+from pathlib import Path
 
 import httpx
 import pytest
@@ -57,3 +58,12 @@ def test_service_templates_are_valid(tmp_path):
     assert "<string>run</string>" in plist
     assert "-m bbeye run" in service.systemd_unit("/venv/bin/python")
     assert "<ExecutionTimeLimit>PT0S</ExecutionTimeLimit>" in service.windows_task_xml("p", "u")
+
+
+def test_idle_server_service_templates():
+    plist = service.launchd_plist("/venv/bin/python", Path("/logs"), service.IDLE)
+    xml.dom.minidom.parseString(plist)
+    assert "<string>idle-serve</string>" in plist and service.IDLE.launchd_label in plist
+    assert "-m bbeye idle-serve" in service.windows_task_xml("p", "u", service.IDLE)
+    assert "-m bbeye idle-serve" in service.systemd_unit("/venv/bin/python", service.IDLE)
+    assert service.EYE.launchd_label != service.IDLE.launchd_label
