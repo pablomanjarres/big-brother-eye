@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+# local runtime data and secrets, in case someone points the app at the repo folder
+*.sqlite3
+*.sqlite3-*
+secrets.env
+*.pt
+*.onnx
+.DS_Store
