@@ -14,6 +14,7 @@ from typing import Any
 from bbeye.integrations.cortex import SPRINT_KEY, CortexClient, CortexConflict, CortexError
 from bbeye.reactors.base import Tick
 from bbeye.storage import Storage
+from bbeye.timeutil import backoff
 from bbeye.tracker import ActivityChanged, Event
 
 log = logging.getLogger(__name__)
@@ -31,10 +32,12 @@ class SprintGuard:
         pause_after: timedelta,
         resume: bool = True,
         retry_every: timedelta = timedelta(minutes=1),
+        max_retry: timedelta = timedelta(minutes=30),
     ) -> None:
         self.storage, self.cortex = storage, cortex
         self.pause_after, self.resume = pause_after, resume
-        self.retry_every = retry_every
+        self.retry_every, self.max_retry = retry_every, max_retry
+        self._failures = 0
         self._left_at: datetime | None = None
         self._next_try: datetime | None = None
         self._returned_at: datetime | None = None  # set while a resume is pending
@@ -62,10 +65,13 @@ class SprintGuard:
             elif self._returned_at:
                 self._resume(self._returned_at, now)
                 self._returned_at = None
-            self._next_try = None
+            self._next_try, self._failures = None, 0
         except CortexError as error:
-            log.info("Sprint update postponed: %s", error)
-            self._next_try = now + self.retry_every
+            # Back off: a Cortex that hangs on writes must not collect a new stuck request every minute.
+            delay = backoff(self.retry_every.total_seconds(), self._failures, self.max_retry.total_seconds())
+            self._failures += 1
+            log.info("Sprint update postponed %.0f s: %s", delay.total_seconds(), error)
+            self._next_try = now + delay
 
     def _update(self, change: Callable[[Any], tuple[dict, Callable[[], None]] | None]) -> None:
         """Read-modify-write with Cortex's revision check; one re-read on a conflict.
