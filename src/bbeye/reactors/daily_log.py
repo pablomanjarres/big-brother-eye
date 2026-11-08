@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 import math
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 from typing import Any
 
 from bbeye.integrations.cortex import NO_CHANGE, CortexClient, CortexError
@@ -26,12 +26,12 @@ log = logging.getLogger(__name__)
 TARGET = "cortex.daily_log"
 
 
-def daily_key(started_at: datetime) -> str:
-    """Cortex files a session under the local day it started.
+def daily_key(started_at: datetime, zone: tzinfo | None = None) -> str:
+    """Cortex files a session under the day it started, in the zone of the computer running Cortex.
 
-    The day comes from this computer's time zone; run the Eye and Cortex in the same zone.
+    ``zone`` is that zone (``cortex.time_zone``); None means this computer's zone.
     """
-    return f"cortex-daily-sessions-{started_at.astimezone().date().isoformat()}"
+    return f"cortex-daily-sessions-{started_at.astimezone(zone).date().isoformat()}"
 
 
 def _span(entry: Any) -> Interval | None:
@@ -97,8 +97,10 @@ class DailyLogSync:
         label: str = "Desk work",
         every: timedelta = timedelta(minutes=5),
         clock=None,
+        zone: tzinfo | None = None,
     ) -> None:
         self.storage, self.cortex, self.label, self.every = storage, cortex, label, every
+        self.zone = zone
         self._now = clock or now_utc
         self._open: tuple[str, datetime] | None = None
         self._last_live: datetime | None = None
@@ -135,10 +137,11 @@ class DailyLogSync:
         return f"logged {payload['id']} on the Daily page"
 
     def _write(self, session_id: str, start: datetime, end: datetime) -> None:
+        start_key, end_key = daily_key(start, self.zone), daily_key(end, self.zone)
         also_taken: list[Interval] = []
-        if daily_key(end) != daily_key(start):  # crossed midnight: sprints after it live in the next list
-            later = self.cortex.read(daily_key(end)).data
+        if end_key != start_key:  # crossed midnight: sprints after it live in the next list
+            later = self.cortex.read(end_key).data
             also_taken = [span for span in map(_span, later if isinstance(later, list) else []) if span]
         self.cortex.update(
-            daily_key(start), lambda data: merge_session(data, session_id, start, end, self.label, also_taken)
+            start_key, lambda data: merge_session(data, session_id, start, end, self.label, also_taken)
         )
