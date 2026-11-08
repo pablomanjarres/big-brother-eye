@@ -93,3 +93,21 @@ def test_a_long_look_away_at_an_unclear_angle_keeps_the_owner():
     build([PERSON], [OWNER_FACE], memory, t=0)
     side = Face(Box(205, 150, 305, 260), None, 0.28)
     assert all(build([PERSON], [side], memory, t=t).owner_present for t in range(2, 300, 2))
+
+
+def test_an_unclear_lookalike_loses_the_owner_name_after_the_unclear_hold():
+    memory = IdentityMemory(45, unclear_hold_s=300)
+    build([PERSON], [OWNER_FACE], memory, t=0)
+    lookalike = Face(Box(205, 150, 305, 260), None, 0.25)
+    seen = [build([PERSON], [lookalike], memory, t=t).owner_present for t in range(2, 600, 2)]
+    assert any(seen[:100]) and not any(seen[160:])
+
+
+def test_a_face_matching_someone_else_never_borrows_a_name():
+    memory = IdentityMemory(45)
+    other = Detection("person", 0.9, Box(800, 100, 1100, 700))
+    build([PERSON, other], [OWNER_FACE, Face(Box(900, 150, 1000, 260), "sam", 0.8)], memory, t=0)
+    # Next frame: two faces both best-match the owner; the second must not inherit "sam".
+    twin = Face(Box(900, 150, 1000, 260), "me", 0.6)
+    obs = build([PERSON, other], [OWNER_FACE, twin], memory, t=2)
+    assert [p.name for p in obs.people].count("sam") == 0
