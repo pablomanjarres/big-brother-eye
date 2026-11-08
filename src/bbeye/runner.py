@@ -48,7 +48,9 @@ class Eye:
     def __post_init__(self) -> None:
         now = self.clock()
         self.tracker = ActivityTracker(self.config.tracker, now)
-        self.memory = IdentityMemory(self.config.faces.identity_hold_s)
+        self.memory = IdentityMemory(
+            self.config.faces.identity_hold_s, continuity_threshold=self.config.faces.continuity_threshold
+        )
         self._pruned_at: datetime | None = None
         self.stopped = threading.Event()
 

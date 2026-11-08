@@ -18,6 +18,7 @@ device = ""                      # "" = automatic, or "cpu", "cuda:0", "mps"
 [faces]
 match_threshold = 0.363
 identity_hold_s = 45.0
+continuity_threshold = 0.2
 
 [signals]
 use_input_idle = true            # use keyboard/mouse activity of this computer as a work signal

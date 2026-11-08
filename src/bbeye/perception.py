@@ -20,13 +20,15 @@ class _Sighting:
 class IdentityMemory:
     """Keeps a recognized name on a person for a while after their face turns away.
 
-    A person box without a recognized face inherits a recent name when it overlaps
-    the box where that name was last confirmed.
+    A person box inherits a recent name when it overlaps the box where that name was
+    last confirmed and either shows no face or shows a face that is unclear but still
+    somewhat similar (``continuity_threshold``). A clearly different face never does.
     """
 
-    def __init__(self, hold_s: float, min_iou: float = 0.3) -> None:
+    def __init__(self, hold_s: float, min_iou: float = 0.3, continuity_threshold: float = 0.2) -> None:
         self.hold_s = hold_s
         self.min_iou = min_iou
+        self.continuity_threshold = continuity_threshold
         self._last: dict[str, _Sighting] = {}
 
     def remember(self, name: str, box: Box, at: datetime) -> None:
@@ -80,14 +82,11 @@ def build_observation(
         box = person_boxes[index]
         face = face_for.get(index)
         name = face.name if face and face.name not in taken else None
-        if name:
-            memory.remember(name, box, at)
-        elif face is None:
+        if not name and (face is None or face.similarity >= memory.continuity_threshold):
             name = memory.recall(box, at, taken)
         if name:
             taken.add(name)
-            if face is None:
-                memory.remember(name, box, at)
+            memory.remember(name, box, at)
         holding = any(box.intersection(phone) > 0.5 * phone.area for phone in phones)
         people.append(Person(box=box, name=name, face_visible=face is not None, holding_phone=holding))
 

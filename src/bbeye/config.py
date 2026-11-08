@@ -46,6 +46,7 @@ class DetectorConfig:
 class FacesConfig:
     match_threshold: float = 0.363  # SFace cosine threshold recommended by OpenCV
     identity_hold_s: float = 45.0  # keep a name on a person whose face turned away
+    continuity_threshold: float = 0.2  # an unclear face this similar keeps the name of whoever was just there
 
 
 @dataclass(frozen=True)
@@ -253,6 +254,7 @@ device = ""                      # "" = automatic, or "cpu", "cuda:0", "mps"
 [faces]
 match_threshold = 0.363
 identity_hold_s = 45.0
+continuity_threshold = 0.2
 
 [signals]
 use_input_idle = true            # use keyboard/mouse activity of this computer as a work signal
