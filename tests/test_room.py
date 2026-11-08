@@ -80,6 +80,10 @@ class FakeRoom:
     def __init__(self):
         self.moved_at = None
 
+    @property
+    def last_person_motion(self):
+        return self.moved_at
+
     def person_moved_since(self, moment):
         return self.moved_at is not None and self.moved_at > moment
 
@@ -121,4 +125,6 @@ def test_eye_uses_the_room_camera_to_confirm_leaving(storage):
     for _ in range(8):
         eye.step()
         clock["t"] += timedelta(seconds=2)
-    assert eye_status(storage, clock["t"])["activity"] == "away"  # 16 s, not 2 minutes
+    status = eye_status(storage, clock["t"])
+    assert status["activity"] == "away"  # 16 s, not 2 minutes
+    assert status["room_last_motion"] is not None
