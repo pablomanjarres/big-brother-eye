@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime, tzinfo
 from typing import Any
 
 import httpx
@@ -15,6 +15,11 @@ import httpx
 SPRINT_KEY = "cortex-active-sprint"
 NO_CHANGE = object()  # returned by an update's change function to skip the write
 WORK_HOURS_KEY = "cortex-project-time"
+
+
+def cortex_day(moment: datetime, zone: tzinfo | None = None) -> date:
+    """The date Cortex sees for ``moment``: its day in ``zone`` (``cortex.time_zone``), or this computer's."""
+    return moment.astimezone(zone).date()
 
 
 class CortexError(RuntimeError):
