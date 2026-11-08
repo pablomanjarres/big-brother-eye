@@ -18,10 +18,15 @@ def draw(frame: np.ndarray, observation: Observation, verdict: Verdict) -> np.nd
         cv2.putText(
             canvas, detection.label, (int(b.x1), int(b.y1) - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.45, GREY, 1
         )
+    others = observation.others
     for person in observation.people:
         b = person.box
-        color = GREEN if person.name == observation.owner else ORANGE
-        label = person.name or "unknown"
+        if person is observation.owner_person:
+            color, label = GREEN, person.name or ""
+        elif person in others:
+            color, label = ORANGE, person.name or "unknown"
+        else:  # a person shape with no face evidence; not counted as anyone
+            color, label = GREY, "no face"
         if person.holding_phone:
             label += " (phone)"
         cv2.rectangle(canvas, (int(b.x1), int(b.y1)), (int(b.x2), int(b.y2)), color, 2)
