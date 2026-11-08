@@ -18,9 +18,12 @@ device = ""                      # "" = automatic, or "cpu", "cuda:0", "mps"
 [faces]
 match_threshold = 0.363
 identity_hold_s = 45.0
+continuity_threshold = 0.2
 
 [signals]
 use_input_idle = true            # use keyboard/mouse activity of this computer as a work signal
+idle_urls = []                   # other computers you type on, running `bbeye idle-serve`, e.g.
+                                 # ["https://my-desktop.tailnet.ts.net:8771/idle"]
 input_active_s = 120.0
 
 [judge]

@@ -46,11 +46,13 @@ class DetectorConfig:
 class FacesConfig:
     match_threshold: float = 0.363  # SFace cosine threshold recommended by OpenCV
     identity_hold_s: float = 45.0  # keep a name on a person whose face turned away
+    continuity_threshold: float = 0.2  # an unclear face this similar keeps the name of whoever was just there
 
 
 @dataclass(frozen=True)
 class SignalsConfig:
     use_input_idle: bool = True  # keyboard/mouse activity of the machine running the Eye
+    idle_urls: tuple[str, ...] = ()  # `bbeye idle-serve` on other computers you type on
     input_active_s: float = 120.0
 
 
@@ -253,9 +255,12 @@ device = ""                      # "" = automatic, or "cpu", "cuda:0", "mps"
 [faces]
 match_threshold = 0.363
 identity_hold_s = 45.0
+continuity_threshold = 0.2
 
 [signals]
 use_input_idle = true            # use keyboard/mouse activity of this computer as a work signal
+idle_urls = []                   # other computers you type on, running `bbeye idle-serve`, e.g.
+                                 # ["https://my-desktop.tailnet.ts.net:8771/idle"]
 input_active_s = 120.0
 
 [judge]

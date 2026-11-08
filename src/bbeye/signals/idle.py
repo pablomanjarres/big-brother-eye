@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import ctypes
 import sys
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Sequence
+
+import httpx
+
+from bbeye.timeutil import backoff
+
+IdleReader = Callable[[], float | None]
 
 
 def _windows() -> Callable[[], float | None]:
@@ -52,3 +59,44 @@ def input_idle_reader() -> Callable[[], float | None]:
     except (OSError, AttributeError):
         pass
     return lambda: None
+
+
+def remote_idle_reader(url: str, client: httpx.Client | None = None) -> IdleReader:
+    """Idle seconds reported by `bbeye idle-serve` on another computer. Unreachable means unknown,
+    and an unreachable computer is skipped for a while so it never slows the capture loop."""
+    client = client or httpx.Client(timeout=1.5)
+    failures = 0
+    skip_until = 0.0
+
+    def read() -> float | None:
+        nonlocal failures, skip_until
+        if time.monotonic() < skip_until:
+            return None
+        try:
+            response = client.get(url)
+            value = response.json().get("idle_s") if response.status_code == 200 else None
+        except (httpx.HTTPError, ValueError, AttributeError):
+            value = None
+        if not isinstance(value, int | float) or isinstance(value, bool) or value < 0:
+            skip_until = time.monotonic() + backoff(5.0, failures, 300.0).total_seconds()
+            failures += 1
+            return None
+        failures = 0
+        return float(value)
+
+    return read
+
+
+def most_recent_input(readers: Sequence[IdleReader]) -> IdleReader:
+    """The smallest idle time across computers: you are active if you typed on any of them."""
+
+    def read() -> float | None:
+        values = [value for value in (reader() for reader in readers) if value is not None]
+        return min(values) if values else None
+
+    return read
+
+
+def build_idle_reader(use_local: bool, urls: Sequence[str]) -> IdleReader:
+    readers = ([input_idle_reader()] if use_local else []) + [remote_idle_reader(url) for url in urls]
+    return most_recent_input(readers)

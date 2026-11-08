@@ -111,6 +111,24 @@ BBEYE_MCP_TOKEN=...          # 24+ random characters, for MCP over HTTP
 
 Model judges fall back to the rules whenever they are slow, rate limited or missing a key. Absence is always decided locally.
 
+## Camera on one computer, keyboard on another
+
+The keyboard and mouse signal comes from the computer running the Eye. If the camera sits on one computer and you type on another, share the typing computer's idle time with the Eye:
+
+```bash
+uv run bbeye service install --idle-server              # on the computer you type on: 127.0.0.1:8771
+tailscale serve --bg --https 8771 http://127.0.0.1:8771 # share it with your tailnet only
+```
+
+Then list it in the Eye's config:
+
+```toml
+[signals]
+idle_urls = ["https://my-desktop.tailnet-name.ts.net:8771/idle"]
+```
+
+The Eye uses the most recent input from this computer and every listed one. `idle-serve` listens on localhost by default and answers only local and Tailscale clients; it shares nothing but a number of seconds. Use `--host 0.0.0.0` to skip Tailscale Serve on a trusted network. Set `use_input_idle = false` if nobody types on the computer running the Eye.
+
 ## Cortex
 
 [Cortex](https://github.com/pablomanjarres/cortex) is a personal dashboard with a work-hours ledger and a deep-work sprint timer. Turn it on with:

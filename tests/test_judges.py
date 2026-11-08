@@ -41,9 +41,9 @@ def test_rules(observation, activity):
     assert RULES.judge(observation).activity == activity
 
 
-def test_rules_can_ignore_input_idle():
-    judge = RulesJudge(SignalsConfig(use_input_idle=False))
-    assert judge.judge(obs(idle=9999)).activity == "working"
+def test_without_any_input_signal_the_camera_decides():
+    assert RULES.judge(obs(idle=None)).activity == "working"
+    assert RULES.judge(obs(idle=None, objects=())).activity == "break"
 
 
 def jev_client(handler):
