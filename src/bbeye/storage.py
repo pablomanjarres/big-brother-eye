@@ -398,3 +398,38 @@ class Storage:
         return found
 
     def forget_faces(self, name: str) -> int:
+        return self._db.execute("DELETE FROM faces WHERE name = ?", (name,)).rowcount
+
+    # ── sprint pauses made by the Eye (so it only resumes what it paused) ──────
+
+    def record_sprint_pause(
+        self, sprint_started_at: str, left_at: datetime, paused_at: datetime, left: int
+    ) -> None:
+        self._db.execute(
+            "INSERT OR REPLACE INTO sprint_pauses (sprint_started_at, left_at, paused_at, paused_time_left)"
+            " VALUES (?, ?, ?, ?)",
+            (sprint_started_at, iso(left_at), iso(paused_at), left),
+        )
+
+    def open_sprint_pause(self) -> SprintPause | None:
+        row = self._db.execute(
+            "SELECT * FROM sprint_pauses WHERE resolved_at IS NULL ORDER BY paused_at DESC LIMIT 1"
+        ).fetchone()
+        if row is None:
+            return None
+        return SprintPause(row["sprint_started_at"], parse_iso(row["left_at"]), row["paused_time_left"])
+
+    def resolve_sprint_pause(self, sprint_started_at: str, at: datetime, resolution: str) -> None:
+        self._db.execute(
+            "UPDATE sprint_pauses SET resolved_at = ?, resolution = ? WHERE sprint_started_at = ?",
+            (iso(at), resolution, sprint_started_at),
+        )
+
+
+def _session(row: sqlite3.Row) -> WorkSession:
+    return WorkSession(
+        id=row["id"],
+        started_at=parse_iso(row["started_at"]),
+        ended_at=parse_iso(row["ended_at"]) if row["ended_at"] else None,
+        last_working_at=parse_iso(row["last_working_at"]),
+    )
