@@ -42,8 +42,16 @@ def test_unknown_visible_face_is_never_given_the_owner_name():
 
 def test_two_people_one_owner():
     guest = Detection("person", 0.9, Box(800, 100, 1100, 700))
-    obs = build([PERSON, guest], [OWNER_FACE], IdentityMemory(45))
+    guest_face = Face(Box(900, 150, 1000, 260), None, 0.05)
+    obs = build([PERSON, guest], [OWNER_FACE, guest_face], IdentityMemory(45))
     assert obs.owner_present and len(obs.others) == 1
+
+
+def test_a_faceless_person_shape_is_not_a_visitor():
+    # Seen on a real laptop: a thin box fixed at the image edge, confidence 0.16 to 0.49, never a face.
+    fixture = Detection("person", 0.4, Box(0, 0, 160, 660))
+    obs = build([fixture], [], IdentityMemory(45))
+    assert len(obs.people) == 1 and obs.others == () and not obs.owner_present
 
 
 def test_face_without_person_box_counts_as_person():
