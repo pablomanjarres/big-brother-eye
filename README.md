@@ -116,18 +116,18 @@ Model judges fall back to the rules whenever they are slow, rate limited or miss
 The keyboard and mouse signal comes from the computer running the Eye. If the camera sits on one computer and you type on another, share the typing computer's idle time with the Eye:
 
 ```bash
-uv run bbeye idle-serve                    # on the computer you type on (port 8766)
-uv run bbeye service install --idle-server # optional: start it at every login
+uv run bbeye service install --idle-server              # on the computer you type on: 127.0.0.1:8771
+tailscale serve --bg --https 8771 http://127.0.0.1:8771 # share it with your tailnet only
 ```
 
 Then list it in the Eye's config:
 
 ```toml
 [signals]
-idle_urls = ["http://my-desktop.tailnet-name.ts.net:8766/idle"]
+idle_urls = ["https://my-desktop.tailnet-name.ts.net:8771/idle"]
 ```
 
-The Eye uses the most recent input from this computer and every listed one. `idle-serve` answers only this computer and Tailscale addresses, and it shares nothing but a number of seconds. Set `use_input_idle = false` if nobody types on the computer running the Eye.
+The Eye uses the most recent input from this computer and every listed one. `idle-serve` listens on localhost by default and answers only local and Tailscale clients; it shares nothing but a number of seconds. Use `--host 0.0.0.0` to skip Tailscale Serve on a trusted network. Set `use_input_idle = false` if nobody types on the computer running the Eye.
 
 ## Cortex
 

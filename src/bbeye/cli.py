@@ -314,8 +314,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_service)
 
     p = sub.add_parser("idle-serve", help="share this computer's keyboard/mouse idle time with the Eye")
-    p.add_argument("--host", default="0.0.0.0", help="address to listen on (default: all)")
-    p.add_argument("--port", type=int, default=8766)
+    p.add_argument(
+        "--host", default="127.0.0.1", help="address to listen on (share it with `tailscale serve`)"
+    )
+    p.add_argument("--port", type=int, default=8771)
     p.set_defaults(func=cmd_idle_serve)
 
     sub.add_parser("notify-test", help="send a test alert to every notifier").set_defaults(
