@@ -25,7 +25,8 @@ MCP server and CLI read Storage through status.py.
 | `vision/detector.py` | YOLO inference and the list of desk-relevant classes. |
 | `vision/faces.py` | Face detection, embeddings and matching against enrolled people. |
 | `perception.py` | Assigning faces and phones to people; keeping a name on a person who turned away. |
-| `signals/idle.py` | Keyboard and mouse idle time per operating system. |
+| `signals/idle.py` | Keyboard and mouse idle time: this computer per operating system, other computers over HTTP, and the most recent input across them. |
+| `signals/idle_server.py` | `bbeye idle-serve`: shares this computer's idle time with local and Tailscale clients only. |
 | `judges/` | Deciding the activity for one observation. `base.py` holds the judge contract and the shared question; `rules.py` is the offline default and the fallback; `factory.py` owns which secret each judge needs. |
 | `tracker.py` | Debouncing, back-dating and work-session boundaries. Pure logic, no I/O. |
 | `storage.py` | Every table and query. Nothing else writes SQL. |
