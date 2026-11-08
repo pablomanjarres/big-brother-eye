@@ -27,8 +27,8 @@ class CortexCalendar:
                 event = CalendarEvent(
                     id=str(item.get("id") or ""),
                     title=str(item.get("title") or ""),
-                    start=_moment(item["startDate"]),
-                    end=_moment(item["endDate"]),
+                    start=_moment(item["startDate"], self.zone),
+                    end=_moment(item["endDate"], self.zone),
                     calendar=str(item.get("calendar") or ""),
                     all_day=bool(item.get("isAllDay")),
                     notes=str(item.get("notes") or ""),
@@ -40,6 +40,8 @@ class CortexCalendar:
         return events
 
 
-def _moment(value: str) -> datetime:
+def _moment(value: str, zone: tzinfo | None) -> datetime:
     moment = parse_iso(value)
-    return moment if moment.tzinfo else moment.astimezone()
+    if moment.tzinfo:
+        return moment
+    return moment.replace(tzinfo=zone) if zone else moment.astimezone()  # floating = Cortex's local time
