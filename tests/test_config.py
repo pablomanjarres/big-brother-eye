@@ -66,3 +66,12 @@ def test_repo_example_matches_bbeye_init():
     assert example.read_text() == EXAMPLE_CONFIG, (
         "regenerate config.example.toml from bbeye.config.EXAMPLE_CONFIG"
     )
+
+
+def test_files_saved_with_a_windows_bom_still_load(tmp_path):
+    config = tmp_path / "config.toml"
+    config.write_bytes(b"\xef\xbb\xbfowner = \"pablo\"\n")
+    assert load_config(config).owner == "pablo"
+    secrets = tmp_path / "secrets.env"
+    secrets.write_bytes(b"\xef\xbb\xbfPUSHCUT_API_KEY=abc\n")
+    assert load_secrets(secrets)["PUSHCUT_API_KEY"] == "abc"
