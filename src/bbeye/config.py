@@ -11,8 +11,10 @@ import dataclasses
 import os
 import tomllib
 from dataclasses import dataclass, field
+from datetime import tzinfo
 from pathlib import Path
 from typing import Any, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from platformdirs import user_config_dir, user_data_dir
 
@@ -100,6 +102,7 @@ class CortexConfig:
     resume_sprint: bool = True
     log_daily: bool = True  # show automatic work time on the Cortex Daily page
     daily_label: str = "Desk work"
+    time_zone: str = ""  # IANA zone of the computer running Cortex; "" = this computer's zone
 
 
 @dataclass(frozen=True)
@@ -169,7 +172,19 @@ def load_config(path: Path | None = None) -> Config:
         raw = tomllib.loads(path.read_text(encoding="utf-8-sig"))  # tolerate a Windows BOM
     except tomllib.TOMLDecodeError as error:
         raise ConfigError(f"{path}: {error}") from error
-    return _build(Config, raw, "")
+    config = _build(Config, raw, "")
+    time_zone(config.cortex.time_zone)  # a bad name fails now, not at the first midnight
+    return config
+
+
+def time_zone(name: str) -> tzinfo | None:
+    """The named IANA time zone, or None (this computer's zone) for an empty name."""
+    if not name:
+        return None
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError) as error:
+        raise ConfigError(f"unknown time zone {name!r}; use an IANA name like America/Bogota") from error
 
 
 def _build(cls: type, data: dict[str, Any], where: str) -> Any:
@@ -311,6 +326,7 @@ pause_after_min = 5.0
 resume_sprint = true
 log_daily = true                 # show automatic work time on the Daily page (Deep work, Weekly rhythm)
 daily_label = "Desk work"
+time_zone = ""                   # zone of the computer running Cortex, e.g. "America/Bogota"; "" = this one
 
 [calendar]
 source = "none"                  # none | cortex | ics (set BBEYE_ICS_URL in secrets.env)
