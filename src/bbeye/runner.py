@@ -223,6 +223,10 @@ def build_reactors(
                 reactors.append(WorkHoursSync(storage, cortex, config.cortex.project_id))
             else:
                 log.warning("cortex.project_id is empty, so work hours are not sent to Cortex")
+        if config.cortex.log_daily:
+            from bbeye.reactors.daily_log import DailyLogSync
+
+            reactors.append(DailyLogSync(storage, cortex, config.cortex.daily_label))
         if config.cortex.pause_sprint:
             from bbeye.reactors.sprint import SprintGuard
 

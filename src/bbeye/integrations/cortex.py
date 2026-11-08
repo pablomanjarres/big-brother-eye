@@ -5,6 +5,7 @@ Cortex accepts requests only from localhost or Tailscale addresses.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -12,6 +13,7 @@ from typing import Any
 import httpx
 
 SPRINT_KEY = "cortex-active-sprint"
+NO_CHANGE = object()  # returned by an update's change function to skip the write
 WORK_HOURS_KEY = "cortex-project-time"
 
 
@@ -81,6 +83,25 @@ class CortexClient:
                 f"write {key}: HTTP {response.status_code}", retryable=response.status_code >= 500
             )
         return response.json().get("rev")
+
+    def update(self, key: str, change: Callable[[Any], Any]) -> Any:
+        """Read a key, apply ``change``, and write it back with Cortex's revision check.
+
+        ``change`` returns the new value, or ``NO_CHANGE`` to leave the key alone. A conflict
+        re-reads once. Returns the value written, or ``NO_CHANGE``.
+        """
+        for attempt in range(2):
+            current = self.read(key)
+            new = change(current.data)
+            if new is NO_CHANGE:
+                return NO_CHANGE
+            try:
+                self.write(key, new, current.rev)
+                return new
+            except CortexConflict:
+                if attempt:
+                    raise
+        return NO_CHANGE  # unreachable; keeps type checkers calm
 
     def calendar_events(self, start: date, end: date) -> list[dict[str, Any]]:
         response = self._request(
