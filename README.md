@@ -83,7 +83,7 @@ That creates a Windows scheduled task, a macOS LaunchAgent or a systemd user ser
 `bbeye init` writes [`config.example.toml`](config.example.toml) to your config folder. Every setting is optional. The ones you will most likely change:
 
 ```toml
-owner = "pablo"          # the name you enroll with
+owner = "alex"           # the name you enroll with
 
 [camera]
 source = 0               # or "rtsp://user:pass@192.168.1.20/stream"
