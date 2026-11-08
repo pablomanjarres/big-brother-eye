@@ -312,3 +312,22 @@ def test_sprint_never_resumes_after_you_left_again(storage):
     fake.down = False
     g.on_tick(Tick(at(1100), snapshot("away"), None))
     assert fake.data[SPRINT_KEY]["isPaused"] and fake.data[SPRINT_KEY]["pausedTimeLeft"] == 2400
+
+
+def test_sprint_retries_back_off_while_cortex_hangs(storage):
+    fake = FakeCortex()
+    fake.data[SPRINT_KEY] = running_sprint(ms(at(5000)))
+    fake.down = True
+    g = guard(storage, fake)
+    g.on_events([ActivityChanged(at(0), "working", "away")])
+    attempts = []
+    original = fake.handler
+
+    def counting(request):
+        attempts.append(request.url.path)
+        return original(request)
+
+    g.cortex._client = httpx.Client(transport=httpx.MockTransport(counting))
+    for t in range(300, 300 + 3600, 2):  # an hour of ticks against a dead Cortex
+        g.on_tick(Tick(at(t), snapshot("away"), None))
+    assert len(attempts) <= 8  # 1, 2, 4, 8, 16, 30, 30 minutes apart, not 60 tries
