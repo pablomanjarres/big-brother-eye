@@ -18,38 +18,17 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from bbeye.integrations.cortex import CortexClient, CortexError
+from bbeye.intervals import free_parts
 from bbeye.reactors.base import Tick
+from bbeye.reactors.outbox import flush_outbox
 from bbeye.storage import Storage
-from bbeye.timeutil import backoff, iso, now_utc, parse_iso
+from bbeye.timeutil import iso, now_utc, parse_iso
 from bbeye.tracker import Event, WorkEnded
 
 log = logging.getLogger(__name__)
 
 TARGET = "cortex.work_hours"
-MAX_ATTEMPTS = 200  # with the 10-minute cap this is more than a day of retrying
 MIN_PART = timedelta(minutes=1)  # free slivers shorter than this are not worth a session
-
-
-def free_parts(
-    start: datetime, end: datetime, taken: list[tuple[datetime, datetime]]
-) -> list[tuple[datetime, datetime]]:
-    """The parts of [start, end) that no taken interval covers, in time order."""
-    parts, cursor = [], start
-    for busy_start, busy_end in sorted(taken):
-        if busy_end <= cursor or busy_start >= end:
-            continue
-        if busy_start > cursor:
-            parts.append((cursor, min(busy_start, end)))
-        cursor = max(cursor, busy_end)
-        if cursor >= end:
-            break
-    if cursor < end:
-        parts.append((cursor, end))
-    return [(a, b) for a, b in parts if b - a >= MIN_PART]
-
-
-def retry_delay(attempts: int) -> timedelta:
-    return backoff(5.0, attempts, cap_s=600.0)
 
 
 class WorkHoursSync:
@@ -73,22 +52,11 @@ class WorkHoursSync:
     def on_tick(self, tick: Tick) -> None:
         self.flush(tick.now)
 
-    def flush(self, now: datetime, limit: int = 10) -> None:
-        for _ in range(limit):
-            item = self.storage.next_outbox_item(TARGET, now)
-            if item is None:
-                return
-            try:
-                recorded = self._record(item.payload)
-            except CortexError as error:
-                if error.retryable and item.attempts + 1 < MAX_ATTEMPTS:
-                    self.storage.retry_outbox_item(item.id, str(error), now + retry_delay(item.attempts))
-                    return  # keep order: nothing after this item may overtake it
-                log.warning("Could not record %s in Cortex: %s", item.payload["id"], error)
-                self.storage.finish_outbox_item(item.id, "rejected", str(error))
-                continue
-            log.info("Recorded %s in Cortex as %d interval(s)", item.payload["id"], recorded)
-            self.storage.finish_outbox_item(item.id, "done")
+    def flush(self, now: datetime) -> None:
+        flush_outbox(self.storage, TARGET, now, self._send)
+
+    def _send(self, payload: dict[str, Any]) -> str:
+        return f"recorded {payload['id']} as {self._record(payload)} interval(s)"
 
     def _record(self, payload: dict[str, Any]) -> int:
         session_id = payload["id"]
