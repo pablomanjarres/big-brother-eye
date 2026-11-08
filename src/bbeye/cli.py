@@ -220,11 +220,31 @@ def cmd_mcp(args: argparse.Namespace, config: Config) -> int:
 def cmd_service(args: argparse.Namespace, config: Config) -> int:
     from bbeye import service
 
+    target = service.IDLE if args.idle_server else service.EYE
     try:
-        print(service.install(data_dir() / "logs") if args.action == "install" else service.uninstall())
+        print(
+            service.install(data_dir() / "logs", target)
+            if args.action == "install"
+            else service.uninstall(target)
+        )
     except RuntimeError as error:
         print(error)
         return 1
+    return 0
+
+
+def cmd_idle_serve(args: argparse.Namespace, config: Config) -> int:
+    from bbeye.signals.idle import input_idle_reader
+    from bbeye.signals.idle_server import make_server
+
+    server = make_server(args.host, args.port, input_idle_reader())
+    log.info("Serving idle time at http://%s:%d/idle (localhost and Tailscale only)", args.host, args.port)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
     return 0
 
 
@@ -290,7 +310,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("service", help="start automatically at login")
     p.add_argument("action", choices=["install", "uninstall"])
+    p.add_argument("--idle-server", action="store_true", help="the idle-serve endpoint instead of the Eye")
     p.set_defaults(func=cmd_service)
+
+    p = sub.add_parser("idle-serve", help="share this computer's keyboard/mouse idle time with the Eye")
+    p.add_argument("--host", default="0.0.0.0", help="address to listen on (default: all)")
+    p.add_argument("--port", type=int, default=8766)
+    p.set_defaults(func=cmd_idle_serve)
 
     sub.add_parser("notify-test", help="send a test alert to every notifier").set_defaults(
         func=cmd_notify_test
@@ -317,7 +343,7 @@ def main(argv: list[str] | None = None) -> int:
 
         os.environ["BBEYE_CONFIG_DIR"] = str(args.config.expanduser().resolve().parent)
     # Logs go to stderr (and a file for long-running commands); stdout stays clean for stdio MCP.
-    setup_logging(args.verbose, to_file=args.command in ("run", "mcp"))
+    setup_logging(args.verbose, to_file=args.command in ("run", "mcp", "idle-serve"))
     try:
         config = load_config(args.config.expanduser() if args.config else None)
     except ConfigError as error:
