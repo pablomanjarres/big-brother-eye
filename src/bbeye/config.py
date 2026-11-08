@@ -198,3 +198,120 @@ def _coerce(value: Any, default: Any, key: str) -> Any:
         return value
     if isinstance(default, int):
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise ConfigError(f"{key} must be a whole number")
+        return value
+    if not isinstance(value, str):
+        raise ConfigError(f"{key} must be text")
+    choices = _CHOICES.get(key)
+    if choices and value not in choices:
+        raise ConfigError(f"{key} must be one of: {', '.join(choices)}")
+    return value
+
+
+_CHOICES = {
+    "judge.kind": ("rules", "jev", "openrouter"),
+    "calendar.source": ("none", "cortex", "ics"),
+    "visitors.alert": ("never", "when_away", "always"),
+}
+
+
+def load_secrets(path: Path | None = None) -> dict[str, str]:
+    """Environment variables, with ``secrets.env`` filling only what the environment lacks."""
+    path = path or config_dir() / "secrets.env"
+    values: dict[str, str] = {}
+    if path.exists():
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            name, sep, value = line.partition("=")
+            if not sep or not name.strip():
+                raise ConfigError(f"{path}:{number}: expected NAME=value")
+            values[name.strip()] = value.strip().strip('"').strip("'")
+    values.update({key: value for key, value in os.environ.items() if value})
+    return values
+
+
+EXAMPLE_CONFIG = """\
+# Big Brother Eye configuration. Every setting is optional; these are the defaults.
+# Secrets (API keys, tokens, private calendar URLs) go in secrets.env next to this file
+# or in environment variables, never here.
+
+owner = "me"                     # the name you enroll with `bbeye enroll`
+
+[camera]
+source = 0                       # webcam index, or a URL such as "rtsp://user:pass@192.168.1.20/stream"
+interval_s = 2.0                 # seconds between samples
+width = 1280
+height = 720
+
+[detector]
+model = "yolo11n.pt"             # yolo11n.pt or yolo11s.pt (downloaded and verified), or a local path
+confidence = 0.4
+device = ""                      # "" = automatic, or "cpu", "cuda:0", "mps"
+
+[faces]
+match_threshold = 0.363
+identity_hold_s = 45.0
+
+[signals]
+use_input_idle = true            # use keyboard/mouse activity of this computer as a work signal
+input_active_s = 120.0
+
+[judge]
+# rules = offline | jev = needs TYPESAFE_API_KEY | openrouter = needs OPENROUTER_API_KEY
+kind = "rules"
+jev_model = "jev-latest"
+jev_min_interval_s = 10.0
+openrouter_model = "google/gemini-2.5-flash-lite"
+openrouter_min_interval_s = 60.0
+send_images = false              # true sends camera frames to OpenRouter. Off by default.
+
+[tracker]
+confirm_s = 30.0
+away_after_s = 120.0
+work_gap_s = 300.0
+max_gap_s = 120.0                # no frames for this long (sleep, camera busy) and unseen time is not work
+
+[storage]
+path = ""                        # "" = the app data folder
+observation_retention_days = 30
+
+[cortex]
+enabled = false
+url = "http://127.0.0.1:3456"    # e.g. http://my-mac.tailnet-name.ts.net:3456 over Tailscale
+project_id = ""                  # Cortex project that automatic work sessions belong to
+track_work_hours = true
+pause_sprint = true
+pause_after_min = 5.0
+resume_sprint = true
+
+[calendar]
+source = "none"                  # none | cortex | ics (set BBEYE_ICS_URL in secrets.env)
+desk_keywords = ["desk", "deep work", "focus"]
+desk_calendars = []
+late_after_min = 10.0
+refresh_min = 5.0
+
+[visitors]
+alert = "when_away"              # never | when_away | always
+min_seen_s = 10.0
+gone_after_s = 60.0
+cooldown_min = 30.0
+
+[mcp]
+host = "127.0.0.1"
+port = 8765
+allowed_hosts = []               # e.g. ["my-laptop.tailnet.ts.net"] when exposed through Tailscale Funnel
+serve_http = false               # true: `bbeye run` also serves MCP over HTTP (needs BBEYE_MCP_TOKEN)
+"""
+
+EXAMPLE_SECRETS = """\
+# Big Brother Eye secrets. Keep this file private. Lines are NAME=value.
+# TYPESAFE_API_KEY=
+# OPENROUTER_API_KEY=
+# PUSHCUT_API_KEY=
+# PUSHCUT_NOTIFICATION_ID=
+# BBEYE_ICS_URL=
+# BBEYE_MCP_TOKEN=
+"""
